@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "systerm"
+version = "0.1.0"
+description = "A native GTK/VTE tiling terminal (Terminator-style) for Debian-based systems."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.8"
+authors = [{ name = "Sysible" }]
+keywords = ["terminal", "vte", "gtk", "tiling", "terminator"]
+classifiers = [
+    "Environment :: X11 Applications :: GTK",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Terminals :: Terminal Emulators/X Terminals",
+]
+# NOTE: PyGObject + the GTK3/VTE typelibs are system packages on Debian, not
+# pip wheels — see README (apt install python3-gi gir1.2-gtk-3.0 gir1.2-vte-2.91).
+dependencies = []
+
+[project.scripts]
+systerm = "systerm.app:main"
+
+[tool.setuptools]
+packages = ["systerm"]

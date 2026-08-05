@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=SysTerm
+GenericName=Terminal
+Comment=Tiling terminal with split panes, tabs, and broadcast input
+Exec=systerm
+Icon=io.systerm.SysTerm
+Terminal=false
+Categories=System;TerminalEmulator;Utility;
+Keywords=terminal;shell;prompt;command;tiling;terminator;
+StartupNotify=true
