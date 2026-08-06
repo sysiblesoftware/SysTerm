@@ -31,19 +31,23 @@ you; `--system-site-packages` lets that venv import the system GTK/VTE bindings)
 ```bash
 sudo apt install pipx
 pipx install --system-site-packages .
-# add it to your application menu (desktop entry + icon):
+# add it to your application menu (desktop entry + icons):
 install -Dm644 data/systerm.desktop ~/.local/share/applications/systerm.desktop
-install -Dm644 data/io.systerm.SysTerm.svg \
-  ~/.local/share/icons/hicolor/scalable/apps/io.systerm.SysTerm.svg
+cp -r data/icons/hicolor ~/.local/share/icons/
 # refresh the caches so the launcher shows it immediately (no re-login):
 update-desktop-database ~/.local/share/applications 2>/dev/null || true
 gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
 ```
 
-> **Icon not showing?** The launcher caches menu + icon data. Re-run the two
-> cache commands above (or log out and back in). The icon must be named
-> `io.systerm.SysTerm.svg` and live under `…/icons/hicolor/scalable/apps/` —
-> that matches `Icon=io.systerm.SysTerm` in the desktop entry.
+> **Icon not showing?** Two common causes on servers/minimal desktops:
+> 1. **Menu cache** — re-run the two cache commands above, then log out and
+>    back in (or `killall -HUP gnome-shell` on X11). New entries rarely appear
+>    live.
+> 2. **No SVG loader** — GTK renders themed icons via gdk-pixbuf; without
+>    `librsvg2-common` an SVG icon silently fails. SysTerm ships **PNG** icons
+>    (16–256px) as well as the SVG for exactly this reason, so the raster icon
+>    resolves even with no SVG loader. Check with
+>    `gdk-pixbuf-query-loaders | grep -qi svg` if you want the scalable one too.
 
 Once the desktop entry is installed, **SysTerm is a normal standalone app** —
 launch it from your Activities / application menu, pin it to the dock, or bind
