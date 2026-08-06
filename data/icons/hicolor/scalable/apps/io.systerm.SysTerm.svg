@@ -1,17 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
-    <linearGradient id="hexFrame" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#3f6fe0"/>
-      <stop offset="1" stop-color="#182c63"/>
+    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#4a79e8"/>
+      <stop offset="1" stop-color="#1b2f66"/>
+    </linearGradient>
+    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#101f39"/>
+      <stop offset="1" stop-color="#0a1322"/>
     </linearGradient>
   </defs>
-  <!-- Brand hexagon frame (from the Sysible mark), enclosing a dark terminal. -->
-  <path d="M64 10 L111 37 L111 91 L64 118 L17 91 L17 37 Z"
-        fill="#0b1526" stroke="url(#hexFrame)" stroke-width="9" stroke-linejoin="round"/>
-  <!-- Prompt chevron: royal blue, the accent hue of the wordmark. -->
-  <path d="M46 50 L63 64 L46 78" fill="none" stroke="#3f6fe0"
-        stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-  <!-- Cursor block: the logo's single green circuit accent, as the blinking cursor. -->
-  <rect x="71" y="52" width="15" height="24" rx="3" fill="#3ea832"/>
+  <!-- Sharp hexagon (mitred corners), from the Sysible mark: a thin gradient
+       edge around a dark terminal screen. -->
+  <path d="M64 9 L111 36.5 L111 91.5 L64 119 L17 91.5 L17 36.5 Z"
+        fill="url(#screen)" stroke="url(#edge)" stroke-width="5" stroke-linejoin="miter"/>
+  <!-- Angular prompt chevron: crisp elbow, no rounded caps. -->
+  <path d="M45 47 L64 64 L45 81" fill="none" stroke="#5b86f0"
+        stroke-width="7" stroke-linejoin="miter" stroke-linecap="butt"/>
+  <!-- Slim, square-cornered cursor in the logo's green accent. -->
+  <rect x="73" y="52" width="12" height="24" rx="1" fill="#37a92e"/>
 </svg>
