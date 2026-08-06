@@ -1,3 +1,14 @@
+systerm (0.1.7) unstable; urgency=medium
+
+  * Broadcast: add a hard re-entrancy guard to the key-press fan-out, so even
+    if replaying a key event re-dispatches synchronously on another pane it
+    cannot cascade.
+  * Show the version in the window title (e.g. "SysTerm 0.1.7") so a stale
+    still-open instance is obvious — a freshly-built .deb has no effect until
+    the running window is closed and relaunched.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 22:37:19 +0000
+
 systerm (0.1.6) unstable; urgency=medium
 
   * Broadcast: rebuild on key-press events instead of VTE's "commit" signal.

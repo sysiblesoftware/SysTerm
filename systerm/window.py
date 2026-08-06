@@ -8,15 +8,22 @@ import gi
 gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gio, GLib, Gdk, Pango  # noqa: E402
 
+from . import __version__
 from .terminal import SysTermTerminal
+
+# Shown in the window title so it's obvious at a glance which build is running
+# (a freshly-built .deb does nothing until you relaunch — the title makes a
+# stale still-open instance easy to spot).
+_TITLE = f"SysTerm {__version__}"
 
 
 class SysTermWindow(Gtk.ApplicationWindow):
     def __init__(self, app, config):
-        super().__init__(application=app, title="SysTerm")
+        super().__init__(application=app, title=_TITLE)
         self.config = config
         self.terminals = []          # every pane in this window (for broadcast + cycling)
         self.broadcast_active = False
+        self._broadcasting = False   # re-entrancy guard for the key-press fan-out
         self._active = None          # last-focused terminal
         self._zoom_state = None      # bookkeeping for the zoom-pane toggle
 
@@ -324,30 +331,34 @@ class SysTermWindow(Gtk.ApplicationWindow):
     # ===== broadcast (type once, send to every pane) =======================
     def toggle_broadcast(self):
         self.broadcast_active = not self.broadcast_active
-        self.set_title("SysTerm — BROADCAST" if self.broadcast_active else "SysTerm")
+        self.set_title(f"{_TITLE} — BROADCAST" if self.broadcast_active else _TITLE)
         ctx = self.get_style_context()
         (ctx.add_class if self.broadcast_active else ctx.remove_class)("systerm-broadcast")
 
     def _on_key_press(self, term, event):
         # Broadcast a real keystroke to every OTHER pane by replaying the key
-        # event to them. Only the pane that actually holds the keyboard focus
-        # originates a broadcast: when we replay the event to the other panes,
-        # this handler fires again for each of them, but they don't have focus,
-        # so they return here immediately — the replay can't cascade. And because
-        # feed_child() never emits "key-press-event", there is no echo loop at all
-        # (unlike the old "commit"-based broadcast). Returns False so the focused
-        # pane still processes the key itself.
-        if not self.broadcast_active or not term.has_focus():
+        # event to them. Two things keep this from looping:
+        #   1. Only the pane that holds the keyboard focus originates a broadcast.
+        #   2. A hard re-entrancy guard: while we're fanning a keystroke out, any
+        #      key-press this triggers on another pane (e.g. if replaying the event
+        #      re-dispatches synchronously) is ignored. feed_child() also never
+        #      emits "key-press-event", so there is no echo path at all.
+        # Returns False so the focused pane still processes the key itself.
+        if not self.broadcast_active or self._broadcasting or not term.has_focus():
             return False
-        for t in self.terminals:
-            if t is term:
-                continue
-            win = t.get_window()
-            if win is None:
-                continue                     # not realized yet; skip
-            ev = event.copy()
-            ev.window = win
-            t.event(ev)
+        self._broadcasting = True
+        try:
+            for t in self.terminals:
+                if t is term:
+                    continue
+                win = t.get_window()
+                if win is None:
+                    continue                 # not realized yet; skip
+                ev = event.copy()
+                ev.window = win
+                t.event(ev)
+        finally:
+            self._broadcasting = False
         return False
 
     # ===== helpers =========================================================
