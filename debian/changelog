@@ -1,3 +1,10 @@
+systerm (0.1.2) unstable; urgency=medium
+
+  * Default palette: green and blue tuned to the Sysible logo (green
+    #43a047, royal blue #3560d4) so ANSI green/blue in shell prompts match.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 14:39:26 +0000
+
 systerm (0.1.1) unstable; urgency=medium
 
   * Fix crash when closing a split pane (re-entrant child-exited).
