@@ -25,13 +25,23 @@ git clone <your-fork-url> systerm && cd systerm
 python3 -m systerm
 ```
 
-or install it:
+or install the `systerm` command with **pipx** (it manages the virtualenv for
+you; `--system-site-packages` lets that venv import the system GTK/VTE bindings):
 
 ```bash
-pip install --user .          # provides the `systerm` command
+sudo apt install pipx
+pipx install --system-site-packages .
 # desktop entry + icon (optional):
 install -Dm644 data/systerm.desktop ~/.local/share/applications/systerm.desktop
 ```
+
+> **Not `pip install --user .`** — Debian 12+/Python 3.11+ mark the system
+> interpreter *externally managed* (PEP 668), so it refuses with
+> `error: externally-managed-environment`. Use pipx (above) or a
+> `python3 -m venv --system-site-packages <dir>` you install into. As a last
+> resort you can force the old behaviour with
+> `pip install --user --break-system-packages .`. Running in place with
+> `python3 -m systerm` needs no install at all — there are no pip dependencies.
 
 ## Usage
 
