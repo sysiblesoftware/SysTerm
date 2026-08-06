@@ -1,9 +1,17 @@
+systerm (0.1.5) unstable; urgency=medium
+
+  * Broadcast: suppress the fed panes' echo at its source. feed_child()
+    makes a pane synchronously re-emit "commit"; we now block each target's
+    commit handler across the write so that echo can't re-enter and fan out.
+    This no longer depends on focus tracking or a timing-sensitive flag.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 19:11:55 +0000
+
 systerm (0.1.4) unstable; urgency=medium
 
-  * Fix broadcast amplification: feeding the other panes made them re-emit
-    "commit" asynchronously, so one keystroke fanned out again and again,
-    filling every pane with hundreds of copies of each character. Only the
-    focused pane's input now fans out, so the fed panes' echoes are ignored.
+  * Fix broadcast amplification: one keystroke could fan out repeatedly and
+    fill every pane with copies of each character. Only the focused pane's
+    input fans out; the fed panes' echoes are ignored.
 
  -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 18:54:49 +0000
 

@@ -325,23 +325,26 @@ class SysTermWindow(Gtk.ApplicationWindow):
         (ctx.add_class if self.broadcast_active else ctx.remove_class)("systerm-broadcast")
 
     def _on_commit(self, term, text, _size):
-        # feed_child() on the OTHER panes makes THEM emit "commit" too — but that
-        # re-emission is asynchronous, so a synchronous re-entrancy flag is already
-        # cleared by the time it arrives and every echoed commit fans out AGAIN,
-        # amplifying one keystroke into hundreds (and previously recursing until the
-        # stack blew). The reliable break: only the FOCUSED pane's commits fan out.
-        # We never feed_child the focused pane, so the fed panes' echo-commits (term
-        # is not self._active) are ignored no matter when they fire. The synchronous
-        # flag stays as a cheap second line of defence.
-        if (not self.broadcast_active or not text or self._broadcasting
-                or term is not self._active):
+        # In VTE 2.91, feed_child() SYNCHRONOUSLY makes the target pane re-emit
+        # "commit" (its own echo). If that echo reaches this handler it fans out
+        # again, and one keystroke avalanches into hundreds across every pane.
+        # The robust break is to suppress the echo at its source: block each
+        # target's "commit" handler for the duration of the write, so feed_child's
+        # re-emission is swallowed and can never re-enter. This does not depend on
+        # focus tracking or on the guard flag (kept only as a cheap backstop).
+        if not self.broadcast_active or not text or self._broadcasting:
             return
         data = text.encode() if isinstance(text, str) else bytes(text)
         self._broadcasting = True
         try:
             for t in self.terminals:
-                if t is not term:
+                if t is term:
+                    continue
+                t.handler_block_by_func(self._on_commit)
+                try:
                     _feed_child(t, data)
+                finally:
+                    t.handler_unblock_by_func(self._on_commit)
         finally:
             self._broadcasting = False
 
