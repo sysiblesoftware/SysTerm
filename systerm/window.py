@@ -176,6 +176,12 @@ class SysTermWindow(Gtk.ApplicationWindow):
         return out
 
     def _on_term_exit(self, term):
+        # Destroying a pane kills its shell, so VTE fires "child-exited" during
+        # close_pane's .destroy(). close_pane forgets the terminal before
+        # destroying it, so a terminal we no longer track is already being torn
+        # down — acting again would re-enter close_pane with a detached widget.
+        if term not in self.terminals:
+            return
         self.close_pane(term)
 
     def _on_term_title(self, term):
@@ -233,6 +239,9 @@ class SysTermWindow(Gtk.ApplicationWindow):
             return
         self._forget(term)
         parent = term.get_parent()
+        if parent is None:          # already detached (defensive) — just tear it down
+            term.destroy()
+            return
         if isinstance(parent, Gtk.Paned):
             sibling = parent.get_child2() if parent.get_child1() is term else parent.get_child1()
             grand = parent.get_parent()
