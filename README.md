@@ -31,9 +31,17 @@ you; `--system-site-packages` lets that venv import the system GTK/VTE bindings)
 ```bash
 sudo apt install pipx
 pipx install --system-site-packages .
-# desktop entry + icon (optional):
+# add it to your application menu (desktop entry + icon):
 install -Dm644 data/systerm.desktop ~/.local/share/applications/systerm.desktop
+install -Dm644 data/io.systerm.SysTerm.svg \
+  ~/.local/share/icons/hicolor/scalable/apps/io.systerm.SysTerm.svg
 ```
+
+Once the desktop entry is installed, **SysTerm is a normal standalone app** —
+launch it from your Activities / application menu, pin it to the dock, or bind
+`systerm` to a keyboard shortcut in your desktop settings. You never need to
+start it from another terminal; running `python3 -m systerm` from a shell is
+just the from-source convenience.
 
 > **Not `pip install --user .`** — Debian 12+/Python 3.11+ mark the system
 > interpreter *externally managed* (PEP 668), so it refuses with
@@ -47,6 +55,10 @@ install -Dm644 data/systerm.desktop ~/.local/share/applications/systerm.desktop
 
 Launch `systerm` (or `python3 -m systerm`). You start with one shell pane. Split
 it, open tabs, and work.
+
+**Right-click any pane** for the context menu — Split Horizontally / Vertically,
+Open Tab / Window, Copy / Paste, Zoom, Broadcast, and Close — the same actions as
+the keyboard shortcuts below, each shown with its shortcut.
 
 ### Default keybindings
 
@@ -92,7 +104,7 @@ toggle-broadcast = <Primary><Shift>a
 - Directional focus (`Alt+Arrows`) and drag-to-resize handles (VTE gives us the
   panes; geometry-aware navigation is next).
 - Saved layouts / named profiles.
-- Right-click context menu + preferences UI (config is file-only for now).
+- Preferences UI (config is file-only for now).
 - Session groups: broadcast to a *subset* of panes, not just all.
 - Debian packaging (`debian/` rules → a proper `.deb` for the distro default).
 - Optional C+VTE port for a leaner single binary if we want it in the base image.

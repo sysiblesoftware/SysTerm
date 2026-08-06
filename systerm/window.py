@@ -6,7 +6,7 @@ themselves (terminal.py) only run a shell and report title/exit."""
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gio, GLib, Pango  # noqa: E402
+from gi.repository import Gtk, Gio, GLib, Gdk, Pango  # noqa: E402
 
 from .terminal import SysTermTerminal
 
@@ -85,6 +85,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         term = SysTermTerminal(self.config, on_exit=self._on_term_exit, on_title=self._on_term_title)
         term.connect("commit", self._on_commit)
         term.connect("focus-in-event", self._on_focus_in)
+        term.connect("button-press-event", self._on_term_button_press)
         self.terminals.append(term)
         return term
 
@@ -97,6 +98,82 @@ class SysTermWindow(Gtk.ApplicationWindow):
     def _on_focus_in(self, term, _event):
         self._active = term
         return False
+
+    # ===== right-click context menu ========================================
+    def _on_term_button_press(self, term, event):
+        if event.button == 3 and event.type == Gdk.EventType.BUTTON_PRESS:
+            term.grab_focus()          # so split/close target the pane you clicked
+            self._active = term
+            self._show_context_menu(term, event)
+            return True                # we handled it; don't start a VTE selection
+        return False
+
+    def _show_context_menu(self, term, event):
+        menu = Gtk.Menu()
+        accels = self._accel_labels()
+
+        def add(label, callback, *, action=None, enabled=True):
+            item = Gtk.MenuItem()
+            item.add(self._menu_row(label, accels.get(action)))
+            item.set_sensitive(enabled)
+            item.connect("activate", lambda *_: callback())
+            menu.append(item)
+
+        def sep():
+            menu.append(Gtk.SeparatorMenuItem())
+
+        # Terminator wording: "horizontal" = top/bottom (a VERTICAL paned).
+        add("Split Horizontally", lambda: self.split(Gtk.Orientation.VERTICAL),
+            action="split-horizontal")
+        add("Split Vertically", lambda: self.split(Gtk.Orientation.HORIZONTAL),
+            action="split-vertical")
+        sep()
+        add("Open Tab", self.new_tab, action="new-tab")
+        add("Open Window", lambda: self.get_application().new_window(), action="new-window")
+        sep()
+        add("Copy", term.copy, action="copy", enabled=term.get_has_selection())
+        add("Paste", term.paste, action="paste")
+        sep()
+        multi = len(self._terminals_in(self._current_root())) > 1
+        zoomed = bool(self._zoom_state) and self._zoom_state["root"] is self._current_root()
+        add("Restore All Terminals" if zoomed else "Zoom Terminal", self.toggle_zoom,
+            action="zoom-pane", enabled=multi or zoomed)
+        bcast = Gtk.CheckMenuItem(label="Broadcast to All Terminals")
+        bcast.set_active(self.broadcast_active)
+        bcast.connect("toggled", lambda *_: self.toggle_broadcast())
+        menu.append(bcast)
+        sep()
+        add("Close Terminal", lambda: self.close_pane(term), action="close-pane")
+
+        menu.show_all()
+        menu.attach_to_widget(term, None)
+        menu.connect("selection-done", lambda m: m.destroy())
+        if hasattr(menu, "popup_at_pointer"):
+            menu.popup_at_pointer(event)
+        else:  # GTK < 3.22
+            menu.popup(None, None, None, None, event.button, event.time)
+
+    def _menu_row(self, label, accel):
+        """A menu-item child that right-aligns the shortcut hint, Terminator-style."""
+        row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=18)
+        row.pack_start(Gtk.Label(label=label, xalign=0.0), True, True, 0)
+        if accel:
+            hint = Gtk.Label(label=accel, xalign=1.0)
+            hint.get_style_context().add_class("dim-label")
+            row.pack_end(hint, False, False, 0)
+        return row
+
+    def _accel_labels(self):
+        """Map action name → human shortcut (e.g. "Ctrl+Shift+O") for the menu."""
+        out = {}
+        for name in ("split-horizontal", "split-vertical", "new-tab", "new-window",
+                     "copy", "paste", "zoom-pane", "close-pane"):
+            accels = self.config.accels_for(name)
+            if accels:
+                key, mods = Gtk.accelerator_parse(accels[0])
+                if key:
+                    out[name] = Gtk.accelerator_get_label(key, mods)
+        return out
 
     def _on_term_exit(self, term):
         self.close_pane(term)
