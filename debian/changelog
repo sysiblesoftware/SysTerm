@@ -1,3 +1,12 @@
+systerm (0.1.4) unstable; urgency=medium
+
+  * Fix broadcast amplification: feeding the other panes made them re-emit
+    "commit" asynchronously, so one keystroke fanned out again and again,
+    filling every pane with hundreds of copies of each character. Only the
+    focused pane's input now fans out, so the fed panes' echoes are ignored.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 18:54:49 +0000
+
 systerm (0.1.3) unstable; urgency=medium
 
   * Fix crash when broadcasting to all panes (feeding each pane re-emitted

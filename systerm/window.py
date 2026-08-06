@@ -325,11 +325,16 @@ class SysTermWindow(Gtk.ApplicationWindow):
         (ctx.add_class if self.broadcast_active else ctx.remove_class)("systerm-broadcast")
 
     def _on_commit(self, term, text, _size):
-        # feed_child() on the other panes makes THEM emit "commit" too, which would
-        # re-enter here and recurse until the stack blows (crash). Guard against it:
-        # only the top-level (user-typed) commit fans out; the echoes it produces are
-        # ignored.
-        if not self.broadcast_active or not text or self._broadcasting:
+        # feed_child() on the OTHER panes makes THEM emit "commit" too — but that
+        # re-emission is asynchronous, so a synchronous re-entrancy flag is already
+        # cleared by the time it arrives and every echoed commit fans out AGAIN,
+        # amplifying one keystroke into hundreds (and previously recursing until the
+        # stack blew). The reliable break: only the FOCUSED pane's commits fan out.
+        # We never feed_child the focused pane, so the fed panes' echo-commits (term
+        # is not self._active) are ignored no matter when they fire. The synchronous
+        # flag stays as a cheap second line of defence.
+        if (not self.broadcast_active or not text or self._broadcasting
+                or term is not self._active):
             return
         data = text.encode() if isinstance(text, str) else bytes(text)
         self._broadcasting = True
