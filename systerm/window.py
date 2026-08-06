@@ -17,6 +17,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self.config = config
         self.terminals = []          # every pane in this window (for broadcast + cycling)
         self.broadcast_active = False
+        self._broadcasting = False   # re-entrancy guard: feeding a pane re-emits "commit"
         self._active = None          # last-focused terminal
         self._zoom_state = None      # bookkeeping for the zoom-pane toggle
 
@@ -324,12 +325,20 @@ class SysTermWindow(Gtk.ApplicationWindow):
         (ctx.add_class if self.broadcast_active else ctx.remove_class)("systerm-broadcast")
 
     def _on_commit(self, term, text, _size):
-        if not self.broadcast_active or not text:
+        # feed_child() on the other panes makes THEM emit "commit" too, which would
+        # re-enter here and recurse until the stack blows (crash). Guard against it:
+        # only the top-level (user-typed) commit fans out; the echoes it produces are
+        # ignored.
+        if not self.broadcast_active or not text or self._broadcasting:
             return
         data = text.encode() if isinstance(text, str) else bytes(text)
-        for t in self.terminals:
-            if t is not term:
-                _feed_child(t, data)
+        self._broadcasting = True
+        try:
+            for t in self.terminals:
+                if t is not term:
+                    _feed_child(t, data)
+        finally:
+            self._broadcasting = False
 
     # ===== helpers =========================================================
     def _current_root(self):

@@ -16,7 +16,7 @@ CONFIG_PATH = os.path.join(CONFIG_DIR, "config.ini")
 # Override under [profile] palette.
 DEFAULT_PALETTE = [
     "#1a1a1a", "#c25b56", "#43a047", "#d0a060", "#3560d4", "#a07daf", "#5fa7a7", "#c0c0c0",
-    "#4d4d4d", "#e07b76", "#52b657", "#f0c080", "#5580ee", "#c09dcf", "#7fc7c7", "#f0f0f0",
+    "#4d4d4d", "#e07b76", "#43a047", "#f0c080", "#5580ee", "#c09dcf", "#7fc7c7", "#f0f0f0",
 ]
 
 # action -> default accelerator (GTK accel syntax; <Primary> is Ctrl).

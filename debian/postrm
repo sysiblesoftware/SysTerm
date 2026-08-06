@@ -1,0 +1,17 @@
+#!/bin/sh
+# Remove the brand-prompt block postinst added to /root/.bashrc when the package
+# is removed or purged, so uninstalling systerm leaves root's prompt as it was.
+set -e
+
+ROOT_BASHRC="/root/.bashrc"
+
+case "$1" in
+    remove|purge)
+        if [ -f "$ROOT_BASHRC" ]; then
+            sed -i '/# >>> SysTerm brand prompt >>>/,/# <<< SysTerm brand prompt <<</d' "$ROOT_BASHRC"
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+exit 0

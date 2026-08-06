@@ -1,0 +1,29 @@
+#!/bin/sh
+# Give root a coloured (royal-blue, matching the Sysible logo) shell prompt, since
+# Debian/Ubuntu ship an uncoloured PS1 for root. Added as a clearly-marked block in
+# /root/.bashrc so it is idempotent and removed again on purge (see postrm). Regular
+# users already get a green prompt from their own ~/.bashrc; only root needs this.
+set -e
+
+MARKER_BEGIN="# >>> SysTerm brand prompt >>>"
+ROOT_BASHRC="/root/.bashrc"
+
+case "$1" in
+    configure)
+        if ! grep -qsF "$MARKER_BEGIN" "$ROOT_BASHRC" 2>/dev/null; then
+            cat >> "$ROOT_BASHRC" <<'SYSTERM_PROMPT'
+
+# >>> SysTerm brand prompt >>>
+# Colour root's prompt royal blue (Sysible logo palette). Installed by the systerm
+# package; remove this block (or `apt purge systerm`) to revert.
+if [ -n "$PS1" ]; then
+    PS1='\[\033[01;34m\]\u@\h\[\033[00m\]:\[\033[01;36m\]\w\[\033[00m\]\$ '
+fi
+# <<< SysTerm brand prompt <<<
+SYSTERM_PROMPT
+        fi
+        ;;
+esac
+
+#DEBHELPER#
+exit 0
