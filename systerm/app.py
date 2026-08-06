@@ -2,6 +2,8 @@
 little CSS (the broadcast-mode window tint), and opens windows. Multiple windows
 share one process."""
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -29,6 +31,7 @@ class SysTermApp(Gtk.Application):
         Gtk.Application.do_startup(self)
         ensure_default_config()
         self.config.load()
+        Gtk.Window.set_default_icon_name(APP_ID)   # themed icon for the window/dock
         self._install_css()
 
     def do_activate(self):
@@ -49,6 +52,34 @@ class SysTermApp(Gtk.Application):
                 screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
 
+_NO_DISPLAY = """\
+SysTerm is a graphical terminal — it needs a desktop session (X11 or Wayland),
+but no display was found.
+
+  • On a desktop machine, launch it from your application menu, or run `systerm`
+    inside that graphical session.
+  • Over SSH, forward X first:   ssh -X user@host    then run `systerm`.
+
+(No $DISPLAY or $WAYLAND_DISPLAY, or the display could not be opened.)
+"""
+
+
+def _has_display(argv):
+    """True if a usable display is reachable. Uses Gtk.init_check so a set-but-
+    dead $DISPLAY (e.g. broken SSH forwarding) is caught, not just an unset one."""
+    if not (os.environ.get("DISPLAY") or os.environ.get("WAYLAND_DISPLAY")):
+        return False
+    try:
+        ok, _ = Gtk.init_check(argv)
+        return bool(ok)
+    except Exception:
+        return False
+
+
 def main(argv=None):
     import sys
-    return SysTermApp().run(argv if argv is not None else sys.argv)
+    argv = argv if argv is not None else sys.argv
+    if not _has_display(argv):
+        sys.stderr.write(_NO_DISPLAY)
+        return 1
+    return SysTermApp().run(argv)

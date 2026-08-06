@@ -35,7 +35,15 @@ pipx install --system-site-packages .
 install -Dm644 data/systerm.desktop ~/.local/share/applications/systerm.desktop
 install -Dm644 data/io.systerm.SysTerm.svg \
   ~/.local/share/icons/hicolor/scalable/apps/io.systerm.SysTerm.svg
+# refresh the caches so the launcher shows it immediately (no re-login):
+update-desktop-database ~/.local/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f -t ~/.local/share/icons/hicolor 2>/dev/null || true
 ```
+
+> **Icon not showing?** The launcher caches menu + icon data. Re-run the two
+> cache commands above (or log out and back in). The icon must be named
+> `io.systerm.SysTerm.svg` and live under `…/icons/hicolor/scalable/apps/` —
+> that matches `Icon=io.systerm.SysTerm` in the desktop entry.
 
 Once the desktop entry is installed, **SysTerm is a normal standalone app** —
 launch it from your Activities / application menu, pin it to the dock, or bind
@@ -50,6 +58,21 @@ just the from-source convenience.
 > resort you can force the old behaviour with
 > `pip install --user --break-system-packages .`. Running in place with
 > `python3 -m systerm` needs no install at all — there are no pip dependencies.
+
+### Build a Debian package (recommended for a system install)
+
+A `debian/` directory ships in the repo, so you can build a proper `.deb`. This
+is the cleanest install: it pulls the GTK/VTE dependencies automatically and
+registers the desktop entry and icon for you (cache refresh included).
+
+```bash
+sudo apt install build-essential debhelper dh-python pybuild-plugin-pyproject
+dpkg-buildpackage -us -uc -b        # produces ../systerm_0.1.0_all.deb
+sudo apt install ../systerm_0.1.0_all.deb
+```
+
+Now `systerm` is on `PATH`, appears in your application menu with its icon, and
+uninstalls cleanly with `sudo apt remove systerm`.
 
 ## Usage
 

@@ -1,0 +1,7 @@
+#!/usr/bin/make -f
+# SysTerm — built as a pure-Python package via dh-python/pybuild; the desktop
+# entry and icon are shipped through debian/install.
+export PYBUILD_NAME=systerm
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild

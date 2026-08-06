@@ -1,0 +1,29 @@
+Source: systerm
+Section: utils
+Priority: optional
+Maintainer: Sysible <sysiblesoftware@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-all,
+               python3-setuptools,
+               pybuild-plugin-pyproject
+Standards-Version: 4.6.2
+Homepage: https://github.com/sysiblesoftware/SysTerm
+Rules-Requires-Root: no
+
+Package: systerm
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3-gi,
+         gir1.2-gtk-3.0,
+         gir1.2-vte-2.91
+Description: tiling terminal emulator with split panes, tabs and broadcast
+ SysTerm is a native GTK/VTE terminal in the spirit of Terminator: split the
+ window into a tree of shell panes, arrange them in tabs, and broadcast your
+ typing to every pane at once.
+ .
+ It is built on the VTE widget used by GNOME Terminal, so the terminal core
+ (PTY, escape sequences, rendering, URLs, scrollback) is solid; SysTerm adds
+ the tiling, tabs, broadcast input, a right-click context menu and a small
+ config file for the profile and keybindings.

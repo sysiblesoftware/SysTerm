@@ -9,3 +9,4 @@ Terminal=false
 Categories=System;TerminalEmulator;Utility;
 Keywords=terminal;shell;prompt;command;tiling;terminator;
 StartupNotify=true
+StartupWMClass=io.systerm.SysTerm

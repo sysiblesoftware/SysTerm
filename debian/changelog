@@ -1,0 +1,6 @@
+systerm (0.1.0) unstable; urgency=medium
+
+  * Initial release: GTK/VTE tiling terminal with split panes, tabs, broadcast
+    input, a right-click context menu, and a configurable profile/keybindings.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 02:17:26 +0000
