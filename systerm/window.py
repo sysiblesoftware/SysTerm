@@ -17,7 +17,6 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self.config = config
         self.terminals = []          # every pane in this window (for broadcast + cycling)
         self.broadcast_active = False
-        self._broadcasting = False   # re-entrancy guard: feeding a pane re-emits "commit"
         self._active = None          # last-focused terminal
         self._zoom_state = None      # bookkeeping for the zoom-pane toggle
 
@@ -84,7 +83,12 @@ class SysTermWindow(Gtk.ApplicationWindow):
     # ===== terminals =======================================================
     def _make_terminal(self):
         term = SysTermTerminal(self.config, on_exit=self._on_term_exit, on_title=self._on_term_title)
-        term.connect("commit", self._on_commit)
+        # Broadcast at the key-press layer, NOT via VTE's "commit" signal.
+        # feed_child() makes a pane re-emit "commit", so a commit-based broadcast
+        # feeds back on itself (one keystroke avalanches across every pane).
+        # key-press-event fires ONLY for real keyboard input and is never emitted
+        # by feed_child(), so replaying keys to the other panes cannot loop.
+        term.connect("key-press-event", self._on_key_press)
         term.connect("focus-in-event", self._on_focus_in)
         term.connect("button-press-event", self._on_term_button_press)
         self.terminals.append(term)
@@ -324,29 +328,27 @@ class SysTermWindow(Gtk.ApplicationWindow):
         ctx = self.get_style_context()
         (ctx.add_class if self.broadcast_active else ctx.remove_class)("systerm-broadcast")
 
-    def _on_commit(self, term, text, _size):
-        # In VTE 2.91, feed_child() SYNCHRONOUSLY makes the target pane re-emit
-        # "commit" (its own echo). If that echo reaches this handler it fans out
-        # again, and one keystroke avalanches into hundreds across every pane.
-        # The robust break is to suppress the echo at its source: block each
-        # target's "commit" handler for the duration of the write, so feed_child's
-        # re-emission is swallowed and can never re-enter. This does not depend on
-        # focus tracking or on the guard flag (kept only as a cheap backstop).
-        if not self.broadcast_active or not text or self._broadcasting:
-            return
-        data = text.encode() if isinstance(text, str) else bytes(text)
-        self._broadcasting = True
-        try:
-            for t in self.terminals:
-                if t is term:
-                    continue
-                t.handler_block_by_func(self._on_commit)
-                try:
-                    _feed_child(t, data)
-                finally:
-                    t.handler_unblock_by_func(self._on_commit)
-        finally:
-            self._broadcasting = False
+    def _on_key_press(self, term, event):
+        # Broadcast a real keystroke to every OTHER pane by replaying the key
+        # event to them. Only the pane that actually holds the keyboard focus
+        # originates a broadcast: when we replay the event to the other panes,
+        # this handler fires again for each of them, but they don't have focus,
+        # so they return here immediately — the replay can't cascade. And because
+        # feed_child() never emits "key-press-event", there is no echo loop at all
+        # (unlike the old "commit"-based broadcast). Returns False so the focused
+        # pane still processes the key itself.
+        if not self.broadcast_active or not term.has_focus():
+            return False
+        for t in self.terminals:
+            if t is term:
+                continue
+            win = t.get_window()
+            if win is None:
+                continue                     # not realized yet; skip
+            ev = event.copy()
+            ev.window = win
+            t.event(ev)
+        return False
 
     # ===== helpers =========================================================
     def _current_root(self):
@@ -426,11 +428,3 @@ class SysTermWindow(Gtk.ApplicationWindow):
             accels = self.config.accels_for(name)
             if accels:
                 app.set_accels_for_action("win.%s" % name, accels)
-
-
-def _feed_child(term, data):
-    """feed_child's signature changed across VTE versions (bytes vs (bytes,len))."""
-    try:
-        term.feed_child(data)
-    except TypeError:
-        term.feed_child(data, len(data))

@@ -1,3 +1,15 @@
+systerm (0.1.6) unstable; urgency=medium
+
+  * Broadcast: rebuild on key-press events instead of VTE's "commit" signal.
+    feed_child() makes a pane re-emit "commit" (asynchronously on some VTE
+    builds), which defeated every commit-based guard and let one keystroke
+    avalanche across every pane. key-press-event fires only for real keyboard
+    input and is never emitted by feed_child(), so replaying keys to the other
+    panes cannot loop. Verified: one keystroke yields exactly one character
+    per pane with no cascade.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Thu, 06 Aug 2026 19:27:48 +0000
+
 systerm (0.1.5) unstable; urgency=medium
 
   * Broadcast: suppress the fed panes' echo at its source. feed_child()
