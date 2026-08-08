@@ -18,9 +18,14 @@ _TITLE = f"SysTerm {__version__}"
 
 
 class SysTermWindow(Gtk.ApplicationWindow):
-    def __init__(self, app, config):
+    def __init__(self, app, config, command=None, cwd=None):
         super().__init__(application=app, title=_TITLE)
         self.config = config
+        # A `-e` command / `--working-directory` applies to the FIRST pane only;
+        # tabs and splits opened later get a normal login shell. Consumed once by
+        # _make_terminal().
+        self._pending_command = command
+        self._pending_cwd = cwd
         self.terminals = []          # every pane in this window (for broadcast + cycling)
         self.broadcast_active = False
         self._broadcasting = False   # re-entrancy guard for the key-press fan-out
@@ -89,7 +94,10 @@ class SysTermWindow(Gtk.ApplicationWindow):
 
     # ===== terminals =======================================================
     def _make_terminal(self):
-        term = SysTermTerminal(self.config, on_exit=self._on_term_exit, on_title=self._on_term_title)
+        command, cwd = self._pending_command, self._pending_cwd
+        self._pending_command = self._pending_cwd = None   # first pane only
+        term = SysTermTerminal(self.config, on_exit=self._on_term_exit,
+                               on_title=self._on_term_title, command=command, cwd=cwd)
         # Broadcast at the key-press layer, NOT via VTE's "commit" signal.
         # feed_child() makes a pane re-emit "commit", so a commit-based broadcast
         # feeds back on itself (one keystroke avalanches across every pane).

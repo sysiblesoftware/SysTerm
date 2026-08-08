@@ -17,7 +17,8 @@ Depends: ${python3:Depends},
          ${misc:Depends},
          python3-gi,
          gir1.2-gtk-3.0,
-         gir1.2-vte-2.91
+         gir1.2-vte-2.91,
+         gir1.2-pango-1.0
 Description: tiling terminal emulator with split panes, tabs and broadcast
  SysTerm is a native GTK/VTE terminal in the spirit of Terminator: split the
  window into a tree of shell panes, arrange them in tabs, and broadcast your

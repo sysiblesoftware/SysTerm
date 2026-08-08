@@ -26,6 +26,9 @@ class SysTermApp(Gtk.Application):
         super().__init__(application_id=APP_ID,
                          flags=Gio.ApplicationFlags.NON_UNIQUE)
         self.config = Config()
+        # First-window command/cwd parsed from `-e` / `--working-directory`.
+        self._initial_command = None
+        self._initial_cwd = None
 
     def do_startup(self):
         Gtk.Application.do_startup(self)
@@ -35,10 +38,14 @@ class SysTermApp(Gtk.Application):
         self._install_css()
 
     def do_activate(self):
-        self.new_window()
+        # The first window honors any `-e`/`--working-directory`; consume them so
+        # a second window (Ctrl+Shift+N / "Open Window") gets a plain shell.
+        command, cwd = self._initial_command, self._initial_cwd
+        self._initial_command = self._initial_cwd = None
+        self.new_window(command=command, cwd=cwd)
 
-    def new_window(self):
-        win = SysTermWindow(self, self.config)
+    def new_window(self, command=None, cwd=None):
+        win = SysTermWindow(self, self.config, command=command, cwd=cwd)
         win.show_all()
         win.present()
         return win
@@ -64,6 +71,43 @@ but no display was found.
 """
 
 
+def parse_terminal_args(argv):
+    """Split off the x-terminal-emulator-style options so GApplication never sees
+    them (it would abort on the unknown `-e`). Recognizes:
+
+        -e / -x / --command CMD [ARGS…]   run CMD instead of a login shell
+        --command=CMD                     (single-token form)
+        --                                everything after is the command
+        --working-directory[=]DIR         open in DIR (also --workdir)
+
+    Returns (clean_argv_for_gapp, command_tokens_or_None, cwd_or_None)."""
+    prog, rest = argv[:1], list(argv[1:])
+    command = None
+    cwd = None
+    passthrough = []
+    i = 0
+    while i < len(rest):
+        a = rest[i]
+        if a in ("-e", "-x", "--command", "--"):
+            command = rest[i + 1:]
+            break
+        if a.startswith("--command="):
+            command = [a.split("=", 1)[1]]
+        elif a in ("--working-directory", "--workdir"):
+            if i + 1 < len(rest):
+                cwd = rest[i + 1]
+                i += 2
+                continue
+        elif a.startswith("--working-directory=") or a.startswith("--workdir="):
+            cwd = a.split("=", 1)[1]
+        else:
+            passthrough.append(a)
+        i += 1
+    if command is not None and len(command) == 0:
+        command = None   # a bare `-e` with no command → just open a shell
+    return prog + passthrough, command, cwd
+
+
 def _has_display(argv):
     """True if a usable display is reachable. Uses Gtk.init_check so a set-but-
     dead $DISPLAY (e.g. broken SSH forwarding) is caught, not just an unset one."""
@@ -79,7 +123,11 @@ def _has_display(argv):
 def main(argv=None):
     import sys
     argv = argv if argv is not None else sys.argv
-    if not _has_display(argv):
+    clean_argv, command, cwd = parse_terminal_args(argv)
+    if not _has_display(clean_argv):
         sys.stderr.write(_NO_DISPLAY)
         return 1
-    return SysTermApp().run(argv)
+    app = SysTermApp()
+    app._initial_command = command
+    app._initial_cwd = cwd
+    return app.run(clean_argv)

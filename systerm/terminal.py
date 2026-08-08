@@ -18,11 +18,15 @@ def _rgba(spec):
 
 
 class SysTermTerminal(Vte.Terminal):
-    def __init__(self, config, on_exit=None, on_title=None):
+    def __init__(self, config, on_exit=None, on_title=None, command=None, cwd=None):
         super().__init__()
         self._config = config
         self._on_exit = on_exit
         self._on_title = on_title
+        # Optional one-shot command (from `-e`/`--command`) and working directory
+        # (from `--working-directory`); when unset a login shell opens in HOME.
+        self._command = command
+        self._cwd = cwd
         self._font_scale = 1.0
         self.apply_profile(config)
         self.set_scroll_on_output(False)
@@ -72,11 +76,10 @@ class SysTermTerminal(Vte.Terminal):
         env.setdefault("TERM", "xterm-256color")
         env["SYSTERM"] = "1"
         envv = ["%s=%s" % kv for kv in env.items()]
-        workdir = os.environ.get("HOME") or os.getcwd()
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
-            workdir,
-            [shell],
+            self._resolve_workdir(),
+            self._resolve_argv(shell),
             envv,
             GLib.SpawnFlags.DEFAULT,
             None, None,          # child_setup, child_setup_data
@@ -84,6 +87,32 @@ class SysTermTerminal(Vte.Terminal):
             None,                # cancellable
             self._spawn_done,    # callback
         )
+
+    def _resolve_argv(self, shell):
+        """Login shell by default; if a `-e`/`--command` was given, run that.
+        A single command token is handed to the shell (`sh -c "…"`) so quoting
+        and operators work; multiple tokens run as a literal argv (xterm-style)."""
+        cmd = self._command
+        if not cmd:
+            return [shell]
+        if len(cmd) == 1:
+            return [shell, "-c", cmd[0]]
+        return list(cmd)
+
+    def _resolve_workdir(self):
+        """An explicit --working-directory wins; otherwise use the process CWD
+        (so "Open in SysTerm here" lands in that folder), falling back to HOME
+        when launched from "/" (the usual cwd for a dock/menu launch)."""
+        if self._cwd and os.path.isdir(self._cwd):
+            return self._cwd
+        home = os.environ.get("HOME")
+        try:
+            pcwd = os.getcwd()
+        except OSError:
+            pcwd = None
+        if pcwd and pcwd != "/":
+            return pcwd
+        return home or pcwd or "/"
 
     def _spawn_done(self, terminal, pid, error, *_):
         if error is not None:

@@ -1,3 +1,17 @@
+systerm (0.1.8) unstable; urgency=medium
+
+  * Act as a proper x-terminal-emulator: honor -e/-x/--command (run a command
+    instead of a login shell) and --working-directory. This makes "Open
+    Terminal" / "Open in SysTerm" from file managers and the desktop work,
+    since those invoke the terminal as `systerm -e ...`.
+  * Open in the caller's directory: the first pane now starts in the process
+    working directory (so "Open here" lands in that folder) instead of always
+    $HOME.
+  * Packaging: declare gir1.2-pango-1.0 (imported directly) so the .deb is
+    self-contained.
+
+ -- Sysible <sysiblesoftware@gmail.com>  Fri, 08 Aug 2026 21:00:00 +0000
+
 systerm (0.1.7) unstable; urgency=medium
 
   * Broadcast: add a hard re-entrancy guard to the key-press fan-out, so even
