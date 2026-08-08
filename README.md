@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/sysible-logo-dark.png">
+    <img alt="Sysible" src=".github/sysible-logo-light.png" width="340">
+  </picture>
+</p>
+
 # SysTerm
 
 A native **GTK + VTE** tiling terminal for Debian-based systems, in the spirit of
