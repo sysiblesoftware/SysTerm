@@ -40,6 +40,18 @@ DEFAULT_KEYS = {
     "zoom-reset": "<Primary>0",
 }
 
+# (label, command) pairs offered in the terminal right-click "Run Command" menu.
+# Users add/remove their own under [commands] (see save_commands / the menu).
+DEFAULT_COMMANDS = [
+    ("apt update", "sudo apt update -y"),
+    ("apt update && upgrade", "sudo apt update -y && sudo apt upgrade -y"),
+    ("apt full-upgrade", "sudo apt update -y && sudo apt full-upgrade -y"),
+    ("apt autoremove", "sudo apt autoremove -y"),
+    ("Disk usage", "df -h"),
+    ("Memory usage", "free -h"),
+    ("Failed services", "systemctl --failed"),
+]
+
 
 class Config:
     """Loaded profile + keybindings. Attributes are plain values so the rest of
@@ -54,9 +66,11 @@ class Config:
         self.palette = list(DEFAULT_PALETTE)
         self.audible_bell = False
         self.keys = dict(DEFAULT_KEYS)
+        self.commands = list(DEFAULT_COMMANDS)
 
     def load(self, path=CONFIG_PATH):
         cp = configparser.ConfigParser()
+        cp.optionxform = str            # preserve case (command labels are shown verbatim)
         try:
             if not cp.read(path):
                 return self
@@ -79,7 +93,33 @@ class Config:
         if cp.has_section("keys"):
             for action, accel in cp["keys"].items():
                 self.keys[action] = accel
+        if cp.has_section("commands"):
+            cmds = [(label, cmd) for label, cmd in cp["commands"].items() if cmd.strip()]
+            if cmds:
+                self.commands = cmds
         return self
+
+    def save_commands(self, path=CONFIG_PATH):
+        """Persist the current command list to the [commands] section, leaving the
+        rest of the file (profile, keys, comments) untouched."""
+        import re
+        try:
+            os.makedirs(CONFIG_DIR, exist_ok=True)
+            if os.path.exists(path):
+                with open(path, encoding="utf-8") as f:
+                    text = f.read()
+            else:
+                text = DEFAULT_CONFIG_TEXT
+            # Drop any existing [commands] section (up to the next section / EOF).
+            text = re.sub(r"(?ms)^\[commands\].*?(?=^\[|\Z)", "", text).rstrip() + "\n"
+            out = ["", "[commands]",
+                   "# label = command  — shown in the terminal right-click Run Command menu."]
+            for label, cmd in self.commands:
+                out.append("%s = %s" % (label, cmd))
+            with open(path, "w", encoding="utf-8") as f:
+                f.write(text + "\n".join(out) + "\n")
+        except OSError:
+            pass
 
     def accels_for(self, action):
         """GTK accel list for an action (empty string disables the binding)."""
@@ -123,6 +163,17 @@ toggle-broadcast = <Primary><Shift>b
 zoom-in = <Primary>plus
 zoom-out = <Primary>minus
 zoom-reset = <Primary>0
+
+# Right-click "Run Command" menu. "label = command"; edit here or via the menu's
+# Add / Manage Commands dialogs. Remove the whole section for the built-in list.
+[commands]
+apt update = sudo apt update -y
+apt update && upgrade = sudo apt update -y && sudo apt upgrade -y
+apt full-upgrade = sudo apt update -y && sudo apt full-upgrade -y
+apt autoremove = sudo apt autoremove -y
+Disk usage = df -h
+Memory usage = free -h
+Failed services = systemctl --failed
 """
 
 

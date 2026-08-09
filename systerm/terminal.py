@@ -127,6 +127,19 @@ class SysTermTerminal(Vte.Terminal):
     def paste(self):
         self.paste_clipboard()
 
+    def run_command(self, command):
+        """Type a command into this pane and run it, as if entered by hand."""
+        if not command:
+            return
+        data = command if command.endswith("\n") else command + "\n"
+        for attempt in (data, data.encode()):   # VTE bindings vary: str vs bytes
+            try:
+                self.feed_child(attempt)
+                break
+            except TypeError:
+                continue
+        self.grab_focus()
+
     # ----- callbacks -------------------------------------------------------
     def _on_child_exited(self, _terminal, _status):
         if self._on_exit:

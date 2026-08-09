@@ -142,6 +142,26 @@ class SysTermWindow(Gtk.ApplicationWindow):
         def sep():
             menu.append(Gtk.SeparatorMenuItem())
 
+        # Run Command submenu: quick commands (click to run in this pane) plus
+        # add/manage of your own. Lives at the top since it's the common action.
+        run_item = Gtk.MenuItem(label="Run Command")
+        submenu = Gtk.Menu()
+        for label, cmd in self.config.commands:
+            mi = Gtk.MenuItem(label=label)
+            mi.set_tooltip_text(cmd)
+            mi.connect("activate", lambda _w, c=cmd, t=term: t.run_command(c))
+            submenu.append(mi)
+        submenu.append(Gtk.SeparatorMenuItem())
+        add_mi = Gtk.MenuItem(label="Add Command…")
+        add_mi.connect("activate", lambda *_: self._add_command_dialog())
+        submenu.append(add_mi)
+        manage_mi = Gtk.MenuItem(label="Manage Commands…")
+        manage_mi.connect("activate", lambda *_: self._manage_commands_dialog())
+        submenu.append(manage_mi)
+        run_item.set_submenu(submenu)
+        menu.append(run_item)
+        sep()
+
         # Terminator wording: "horizontal" = top/bottom (a VERTICAL paned).
         add("Split Horizontally", lambda: self.split(Gtk.Orientation.VERTICAL),
             action="split-horizontal")
@@ -194,6 +214,79 @@ class SysTermWindow(Gtk.ApplicationWindow):
                 if key:
                     out[name] = Gtk.accelerator_get_label(key, mods)
         return out
+
+    # ===== Run Command menu: add / manage =================================
+    def _add_command_dialog(self, label="", command=""):
+        dlg = Gtk.Dialog(title="Add Command", transient_for=self, modal=True)
+        dlg.add_button("Cancel", Gtk.ResponseType.CANCEL)
+        ok = dlg.add_button("Add", Gtk.ResponseType.OK)
+        ok.get_style_context().add_class("suggested-action")
+        box = dlg.get_content_area()
+        box.set_spacing(8)
+        grid = Gtk.Grid(column_spacing=10, row_spacing=8, margin=14)
+        e_label = Gtk.Entry(text=label, width_chars=34)
+        e_cmd = Gtk.Entry(text=command, width_chars=44)
+        e_label.set_placeholder_text("Menu label — e.g. apt update")
+        e_cmd.set_placeholder_text("Command — e.g. sudo apt update -y")
+        e_cmd.set_activates_default(True)
+        dlg.set_default_response(Gtk.ResponseType.OK)
+        grid.attach(Gtk.Label(label="Label", xalign=0), 0, 0, 1, 1)
+        grid.attach(e_label, 1, 0, 1, 1)
+        grid.attach(Gtk.Label(label="Command", xalign=0), 0, 1, 1, 1)
+        grid.attach(e_cmd, 1, 1, 1, 1)
+        box.add(grid)
+        dlg.show_all()
+        ok_clicked = dlg.run() == Gtk.ResponseType.OK
+        cmd = e_cmd.get_text().strip()
+        lbl = e_label.get_text().strip() or cmd
+        dlg.destroy()
+        if ok_clicked and cmd:
+            self.config.commands.append((lbl, cmd))
+            self.config.save_commands()
+            return True
+        return False
+
+    def _manage_commands_dialog(self):
+        dlg = Gtk.Dialog(title="Manage Commands", transient_for=self, modal=True)
+        dlg.add_button("Close", Gtk.ResponseType.CLOSE)
+        box = dlg.get_content_area()
+        box.set_spacing(8)
+        listbox = Gtk.ListBox(margin=12)
+
+        def refresh():
+            for c in listbox.get_children():
+                listbox.remove(c)
+            for i, (label, cmd) in enumerate(self.config.commands):
+                row = Gtk.ListBoxRow()
+                h = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=10, margin=4)
+                text = Gtk.Label(xalign=0, ellipsize=Pango.EllipsizeMode.END)
+                text.set_markup("<b>%s</b>  <span alpha='60%%'>%s</span>"
+                                % (GLib.markup_escape_text(label),
+                                   GLib.markup_escape_text(cmd)))
+                rm = Gtk.Button(label="Remove")
+                rm.connect("clicked", lambda _b, idx=i: self._remove_command(idx, refresh))
+                h.pack_start(text, True, True, 0)
+                h.pack_end(rm, False, False, 0)
+                row.add(h)
+                listbox.add(row)
+            listbox.show_all()
+
+        refresh()
+        sw = Gtk.ScrolledWindow(min_content_height=240, min_content_width=440)
+        sw.add(listbox)
+        box.add(sw)
+        add_btn = Gtk.Button(label="Add Command…", margin=10)
+        add_btn.connect("clicked", lambda *_: (self._add_command_dialog() and refresh()))
+        box.add(add_btn)
+        dlg.show_all()
+        dlg.run()
+        dlg.destroy()
+
+    def _remove_command(self, idx, refresh):
+        if 0 <= idx < len(self.config.commands):
+            self.config.commands.pop(idx)
+            self.config.save_commands()
+            refresh()
 
     def _on_term_exit(self, term):
         # Destroying a pane kills its shell, so VTE fires "child-exited" during

@@ -1,3 +1,13 @@
+systerm (0.1.9) unstable; urgency=medium
+
+  * Right-click "Run Command" menu: quick-run common commands (apt update,
+    update && upgrade, autoremove, disk/memory, failed services) directly in
+    the pane, plus Add/Manage dialogs for your own. Persisted under [commands]
+    in ~/.config/systerm/config.ini.
+  * New hollow green block cursor icon, distinct from the installer icon.
+
+ -- Sysible <noreply@sysible.com>  Sun, 09 Aug 2026 00:00:00 +0000
+
 systerm (0.1.8) unstable; urgency=medium
 
   * Act as a proper x-terminal-emulator: honor -e/-x/--command (run a command
