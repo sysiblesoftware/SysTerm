@@ -55,13 +55,41 @@ class AtlasClient:
         self.url = url
         self.model = model
 
+    def pick_model(self, models):
+        """Point the client at a model that's actually downloaded. Prefer the
+        configured one (exact, or ignoring the :tag), then any qwen/coder model,
+        then whatever's first. Returns the chosen name (or the configured default
+        if the list is empty). This is why analysis 'does nothing' otherwise — the
+        default qwen2.5-coder:7b may not be the model the user pulled."""
+        if not models:
+            return self.model
+        if self.model in models:
+            return self.model
+        base = self.model.split(":", 1)[0]
+        for m in models:
+            if m.split(":", 1)[0] == base:
+                self.model = m
+                return m
+        for m in models:
+            if "coder" in m or m.startswith("qwen"):
+                self.model = m
+                return m
+        self.model = models[0]
+        return self.model
+
     def probe(self, callback):
         """Report setup state off the main thread: is the ollama binary present,
         is the server answering, and which models are downloaded. `callback(dict)`
         fires on the GTK main loop with keys: binary(bool), server(bool),
         models(list)."""
         def work():
-            binary = shutil.which("ollama") is not None
+            # `which` uses PATH, which a GUI app launched from the shell/dock may
+            # trim to a minimal set that omits /usr/local/bin — where ollama.com's
+            # installer puts the binary. Check the common absolute paths too.
+            binary = shutil.which("ollama") is not None or any(
+                os.path.exists(p) for p in
+                ("/usr/local/bin/ollama", "/usr/bin/ollama", "/bin/ollama",
+                 "/opt/ollama/ollama", os.path.expanduser("~/.local/bin/ollama")))
             server, models = False, []
             try:
                 with urllib.request.urlopen(self.url + "/api/tags", timeout=3) as r:
@@ -70,6 +98,10 @@ class AtlasClient:
                 models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
             except Exception:
                 pass
+            # If the server answers, ollama is unquestionably installed and running,
+            # regardless of what `which`/paths said.
+            if server:
+                binary = True
             GLib.idle_add(callback, {"binary": binary, "server": server, "models": models})
         threading.Thread(target=work, daemon=True).start()
 
@@ -389,9 +421,10 @@ class AtlasPanel(Gtk.Box):
         # on-box. (Actions moved to the footer hint bar, mockup-style.)
         badge = Gtk.Label(xalign=1.0)
         badge.get_style_context().add_class("atlas-badge")
-        badge.set_markup(
-            "<span alpha='60%'>local · </span>%s"
-            % GLib.markup_escape_text(self._client.model))
+        # Concatenate, don't %-format: the markup has a literal `alpha='60%'` and
+        # the % operator would choke on the `%'` (the footer bug all over again).
+        self._badge = badge
+        self._refresh_badge()
         head.pack_end(badge, False, False, 0)
         return head
 
@@ -411,16 +444,11 @@ class AtlasPanel(Gtk.Box):
     def _build_footer(self):
         foot = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         foot.get_style_context().add_class("atlas-footer")
-        # Left: where the model runs + the privacy promise.
-        left = Gtk.Label(xalign=0.0)
-        # NB: don't use %-formatting here — the markup contains literal `alpha='75%'`,
-        # and Python's % operator chokes on the `%'` ("unsupported format character").
-        # That once threw during pane construction and silently disabled all of Atlas.
-        model = GLib.markup_escape_text(self._client.model)
-        left.set_markup(
-            "<span alpha='75%'>● local · Ollama · " + model + "</span>"
-            "   <span alpha='45%'>· nothing leaves this machine</span>")
-        foot.pack_start(left, False, False, 0)
+        # Left: where the model runs + the privacy promise. Kept as a ref so the
+        # model name refreshes when we auto-select a downloaded model.
+        self._footer_left = Gtk.Label(xalign=0.0)
+        self._refresh_footer()
+        foot.pack_start(self._footer_left, False, False, 0)
         # Right: the action hints (clickable), mockup-style. These carry the
         # Analyze / Setup actions that used to sit in the header.
         def hint(label, tip, cb):
@@ -437,6 +465,24 @@ class AtlasPanel(Gtk.Box):
                            lambda: self.on_analyze and self.on_analyze()),
                       False, False, 0)
         return foot
+
+    # These build markup by CONCATENATION on purpose — the strings hold literal
+    # `alpha='NN%'`, and a %-format operator would choke on the `%'` (the bug that
+    # twice disabled all of Atlas). Don't reintroduce %-formatting here.
+    def _refresh_badge(self):
+        self._badge.set_markup(
+            "<span alpha='60%'>local · </span>"
+            + GLib.markup_escape_text(self._client.model))
+
+    def _refresh_footer(self):
+        self._footer_left.set_markup(
+            "<span alpha='75%'>● local · Ollama · "
+            + GLib.markup_escape_text(self._client.model) + "</span>"
+            "   <span alpha='45%'>· nothing leaves this machine</span>")
+
+    def _refresh_model_labels(self):
+        self._refresh_badge()
+        self._refresh_footer()
 
     # ----- first-run setup (install Ollama + download a model) -------------
     PULLS = [
@@ -489,6 +535,12 @@ class AtlasPanel(Gtk.Box):
         self._client.probe(self._render_setup)
 
     def _render_setup(self, state):
+        # Point the client at a model that's actually downloaded, so Ask/Analyze
+        # work even if the user pulled something other than the default. Then
+        # refresh the badge/footer to show the model that will actually answer.
+        if state["models"]:
+            self._client.pick_model(state["models"])
+            self._refresh_model_labels()
         for c in self._setup_status.get_children():
             self._setup_status.remove(c)
         s = self._setup_status

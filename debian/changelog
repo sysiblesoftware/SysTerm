@@ -1,3 +1,21 @@
+systerm (0.2.10) unstable; urgency=medium
+
+  * Atlas: FIX a regression — the new header model badge reintroduced the exact
+    %-format-over-literal-`alpha='60%'` crash, so the pane (and its right-click
+    entry) vanished again after upgrading. Build all such markup by concatenation.
+  * Atlas robustness (fixes "doesn't see Ollama / won't analyze"):
+    - Detect Ollama even when a GUI's trimmed PATH hides it — also check the common
+      absolute paths, and treat a reachable server as proof it's installed.
+    - Auto-select a model that's actually downloaded (prefer the configured one,
+      then a matching base name, then any qwen/coder model, then the first). The
+      hard-coded default meant Ask/Analyze silently did nothing if you'd pulled a
+      different model. The header/footer now show the model that will answer.
+  * Tests: add tests/test_atlas.py — an AST scan that fails the build on any
+    %-format over `alpha='NN%'` markup (no GTK needed), plus model-picker and
+    pane-construction tests. Guards against this class of crash recurring.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 18:00:00 +0000
+
 systerm (0.2.9) unstable; urgency=medium
 
   * Icon: redesign the app/dock icon as a `>_` terminal prompt (chevron +
