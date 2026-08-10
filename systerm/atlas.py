@@ -390,10 +390,13 @@ class AtlasPanel(Gtk.Box):
     def _build_footer(self):
         foot = Gtk.Label(xalign=0.0)
         foot.get_style_context().add_class("atlas-footer")
+        # NB: don't use %-formatting here — the markup contains literal `alpha='75%'`,
+        # and Python's % operator chokes on the `%'` ("unsupported format character").
+        # That once threw during pane construction and silently disabled all of Atlas.
+        model = GLib.markup_escape_text(self._client.model)
         foot.set_markup(
-            "<span alpha='75%'>● local · Ollama · %s</span>"
-            "   <span alpha='45%'>· nothing leaves this machine</span>"
-            % GLib.markup_escape_text(self._client.model))
+            "<span alpha='75%'>● local · Ollama · " + model + "</span>"
+            "   <span alpha='45%'>· nothing leaves this machine</span>")
         return foot
 
     # ----- first-run setup (install Ollama + download a model) -------------

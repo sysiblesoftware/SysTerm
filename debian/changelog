@@ -1,3 +1,14 @@
+systerm (0.2.6) unstable; urgency=medium
+
+  * Atlas: FIX the real reason the companion never appeared. The footer built its
+    markup with %-formatting over a string containing a literal `alpha='75%'`, so
+    Python raised "unsupported format character" every time the pane was
+    constructed — silently disabling Atlas and its right-click entry on every
+    platform. Build the footer without %-formatting. This is the actual fix for
+    the missing "Open Sysible Atlas" menu item.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 14:00:00 +0000
+
 systerm (0.2.5) unstable; urgency=medium
 
   * Atlas: the companion pane and its right-click entry ("Open Sysible Atlas")
