@@ -133,7 +133,20 @@ if [ "$MODE" = user ]; then
     fi
 else
     cp "$SRC/data/systerm-atlas.sh" "$PROFILED"
-    say "Installed Atlas hooks to $PROFILED"
+    # /etc/profile.d is sourced by LOGIN shells only, but SysTerm spawns an
+    # interactive NON-login shell — which reads the system bashrc. Source our
+    # hook from there too, or the auto-catch + `ai` command won't load. (Fedora
+    # uses /etc/bashrc; Debian/Ubuntu/Arch/SUSE use /etc/bash.bashrc.)
+    SYSBRC=""
+    for c in /etc/bash.bashrc /etc/bashrc; do [ -f "$c" ] && SYSBRC="$c" && break; done
+    if [ -n "$SYSBRC" ] && ! grep -qF 'systerm-atlas.sh' "$SYSBRC"; then
+        printf '\n# SysTerm Atlas companion (interactive shells)\n[ -n "$PS1" ] && [ -f %s ] && . %s\n' \
+            "$PROFILED" "$PROFILED" >> "$SYSBRC"
+        say "Installed Atlas hooks ($PROFILED, sourced from $SYSBRC)"
+    else
+        say "Installed Atlas hooks to $PROFILED"
+        [ -z "$SYSBRC" ] && warn "No system bashrc found — add '. $PROFILED' to it so \`ai\`/auto-catch load in terminals."
+    fi
     # Make SysTerm a terminal option on Debian-family systems (best-effort).
     command -v update-alternatives >/dev/null 2>&1 && \
         update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$BINDIR/systerm" 40 2>/dev/null || true
@@ -148,4 +161,8 @@ cat <<'NEXT'
     • Install Ollama:  curl -fsSL https://ollama.com/install.sh | sh
     • Pull a model:    ollama pull qwen2.5-coder:7b   (or a smaller one)
   Then in SysTerm press Alt+A, or type:  ai <your question>
+
+  The pane (Alt+A, ask box, Analyze, model picker) works in any shell. The
+  auto-catch of failed commands and the `ai <q>` command are bash-only; open a
+  NEW terminal (or `exec bash`) so the shell hooks load.
 NEXT
