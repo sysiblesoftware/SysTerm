@@ -1,3 +1,16 @@
+systerm (0.2.17) unstable; urgency=medium
+
+  * Atlas: faster and more to-the-point answers. Cap the reply length
+    (num_predict, default 350, env SYSIBLE_AI_MAX_TOKENS) — fewer tokens is both
+    tighter and much faster on CPU-only boxes — and drop temperature to 0.2 so a
+    small model stays focused instead of rambling. Keep the model resident between
+    asks (keep_alive 10m) so the second ask onward skips the reload. Rewrote the
+    system prompt to be far more directive: name the real program/package from the
+    output (no invented "session terminated"), give the exact install/fix command,
+    and stop.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 10 Aug 2026 23:59:00 +0000
+
 systerm (0.2.16) unstable; urgency=medium
 
   * Atlas: the header badge is now a MODEL SELECTOR populated from the server's

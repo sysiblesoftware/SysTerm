@@ -38,14 +38,19 @@ DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or "qwen2.5-coder:1.5b"
 
 SYSTEM_PROMPT = (
     "You are Sysible Atlas, a terse Linux troubleshooting companion inside the "
-    "SysTerm terminal on Sysible Linux (Debian-based; package manager is apt). You "
-    "are given a shell command, its exit code, and the terminal output, or a direct "
-    "question. Answer in this shape and keep it tight:\n"
-    "1. **Cause** — one or two sentences on what actually went wrong.\n"
-    "2. **Fix** — the concrete command(s), in a ```fenced``` block, minimal and "
-    "safe, using apt/systemctl/Debian conventions.\n"
-    "3. **Note** — one line only if a command is risky; otherwise omit.\n"
-    "No pleasantries. If there's no real error, say so briefly."
+    "SysTerm terminal on Sysible Linux (Debian/Ubuntu; package manager is apt). You "
+    "get the terminal's recent output (sometimes a specific failed command + exit "
+    "code) or a direct question. Diagnose the MOST RECENT command actually shown. "
+    "Be extremely concise — a few lines total. Reply in exactly this shape:\n"
+    "**Cause** — one sentence naming the real problem (quote the exact program/"
+    "package/file from the output; do NOT invent generic phrases like 'session "
+    "terminated').\n"
+    "**Fix** — the exact command(s) in ONE ```fenced``` block. If a program is just "
+    "not installed, give the install command shown in the output (apt/snap). Keep it "
+    "minimal.\n"
+    "Add a one-line **Note** ONLY if a command is destructive. No preamble, no "
+    "restating the task, no explaining what the message 'means'. If there is truly "
+    "no error, reply exactly: 'No error.' and one short line."
 )
 
 
@@ -172,7 +177,19 @@ class AtlasClient:
                 "no local models available at %s. Is Ollama running, and have you "
                 "downloaded a model? Use the buttons below." % self.url)
 
-        payload = {"model": self.model, "messages": messages, "stream": True}
+        # Bound the reply: fewer tokens = tighter answer AND faster generation
+        # (crucial on CPU-only boxes). Low temperature keeps it focused, not
+        # rambling. Both tunable via env for power users.
+        try:
+            max_tokens = int(os.environ.get("SYSIBLE_AI_MAX_TOKENS") or 350)
+        except ValueError:
+            max_tokens = 350
+        payload = {
+            "model": self.model, "messages": messages, "stream": True,
+            # Keep the model resident so the SECOND ask onward is fast (no reload).
+            "keep_alive": os.environ.get("SYSIBLE_AI_KEEP_ALIVE") or "10m",
+            "options": {"temperature": 0.2, "top_p": 0.9, "num_predict": max_tokens},
+        }
 
         def attempt():
             got = 0
