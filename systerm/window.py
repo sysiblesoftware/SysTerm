@@ -4,6 +4,7 @@ and implements split / close / focus-cycle / zoom / broadcast; the terminals
 themselves (terminal.py) only run a shell and report title/exit."""
 
 import os
+import re
 
 import gi
 
@@ -20,6 +21,11 @@ from .config import CONFIG_DIR
 # stale still-open instance easy to spot).
 _TITLE = f"SysTerm {__version__}"
 APP_ID = "io.systerm.SysTerm"   # themed icon name (installed under hicolor)
+
+# A standard "user@host:path$ command" / "root@host:path# command" prompt line —
+# used to pull the LAST command out of the scrollback for manual Analyze, so the
+# model diagnoses what you actually ran instead of hallucinating a canned example.
+_PROMPT_RE = re.compile(r"[\w.\-]+@[\w.\-]+:.*?[$#]\s+(\S.*)$")
 
 
 class SysTermWindow(Gtk.ApplicationWindow):
@@ -630,9 +636,11 @@ class SysTermWindow(Gtk.ApplicationWindow):
         if question:
             ctx.append("Question: %s" % question)
         if command:
-            # The specific failed command — emphasise it so the model fixes THIS
-            # one, not some other command elsewhere in the scrollback.
-            ctx.append("The command that failed (fix THIS one only):\n%s" % command)
+            # Name the specific command so the model addresses THIS one, not some
+            # other command elsewhere in the scrollback (or an invented example).
+            label = ("The command that failed (fix THIS one only)"
+                     if exit_code is not None else "The command to analyze")
+            ctx.append("%s:\n%s" % (label, command))
         if exit_code is not None:
             ctx.append("Its exit code: %s" % exit_code)
         # A focused slice of the buffer. A caught failure needs only the last few
@@ -705,10 +713,24 @@ class SysTermWindow(Gtk.ApplicationWindow):
                 "Nothing to analyze yet — run a command in this terminal first, "
                 "then hit Analyze (or a failed command appears here automatically).")
             return
+        # Pull the actual last command out of the scrollback and hand it to the
+        # model explicitly, so it diagnoses THAT (not a hallucinated example).
+        cmd = self._last_command(term)
         self._atlas.start_card("answer", "ANALYSIS", "local",
-                               self._atlas_messages(term),
+                               self._atlas_messages(term, command=cmd),
                                run_target=self._atlas_run_target(term),
                                run_pane_id=getattr(term, "atlas_id", None))
+
+    def _last_command(self, term):
+        """Best-effort: the most recent command typed at a standard prompt, from
+        the scrollback. None if we can't recognise the prompt (then we just send
+        the buffer)."""
+        cmd = None
+        for ln in term.recent_text(max_lines=80).splitlines():
+            m = _PROMPT_RE.search(ln)
+            if m and m.group(1).strip():
+                cmd = m.group(1).strip()
+        return cmd
 
     def _atlas_run(self, command, pane_id=None):
         # Prefer the exact pane this card came from; fall back to the last active

@@ -1,3 +1,13 @@
+systerm (0.2.23) unstable; urgency=medium
+
+  * Atlas: manual Analyze now pulls the actual last command out of the scrollback
+    (standard user@host:path$ prompt) and hands it to the model explicitly — so it
+    diagnoses what you really ran (e.g. isci) instead of a hallucinated canned
+    example (kubectl / git pull). Falls back to sending the buffer if the prompt
+    isn't recognised.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 03:00:00 +0000
+
 systerm (0.2.22) unstable; urgency=medium
 
   * Titlebar: client-side header with the Sysible mark on the left (matches the
