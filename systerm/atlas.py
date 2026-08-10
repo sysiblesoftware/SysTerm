@@ -404,7 +404,8 @@ _FENCE = re.compile(r"```[a-zA-Z0-9]*\n?(.*?)```", re.S)
 
 
 class AtlasCard(Gtk.Box):
-    def __init__(self, kind, title, subtitle, on_run, run_target="terminal"):
+    def __init__(self, kind, title, subtitle, on_run, run_target="terminal",
+                 prompt=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self._on_run = on_run
         self._run_target = run_target
@@ -423,6 +424,14 @@ class AtlasCard(Gtk.Box):
             sub.get_style_context().add_class("atlas-card-sub")
             head.pack_end(sub, True, True, 0)
         self.pack_start(head, False, False, 0)
+
+        # Echo the question you asked, so the card reads like a conversation.
+        if prompt:
+            q = Gtk.Label(xalign=0.0, wrap=True, selectable=True)
+            q.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
+            q.get_style_context().add_class("atlas-question")
+            q.set_markup("<b>You asked</b>  " + GLib.markup_escape_text(prompt))
+            self.pack_start(q, False, False, 0)
 
         # Live streaming text (monospace); replaced by a parsed layout on finish.
         self._live = Gtk.Label(xalign=0.0, label="", wrap=True, selectable=True)
@@ -593,11 +602,13 @@ class AtlasPanel(Gtk.Box):
         # Close (hide) the pane. Hiding keeps the widget alive, so every card and
         # the whole conversation history is preserved — reopening (Alt+A, the
         # right-click entry, or a caught error) shows exactly where you left off.
-        close = Gtk.Button(label="✕")
+        close = Gtk.Button(label="Hide  ✕")
         close.get_style_context().add_class("atlas-ghost")
         close.get_style_context().add_class("atlas-close")
-        close.set_tooltip_text("Close Atlas (Alt+A) — history is kept")
+        close.set_tooltip_text("Hide Atlas and return to the terminal (Alt+A) — "
+                               "history is kept. This does NOT close the window.")
         close.connect("clicked", lambda *_: self.on_close and self.on_close())
+        head.pack_end(close, False, False, 0)   # rightmost in the Atlas header
         # Model selector — populated from the server's installed models, so you
         # SEE what's available and pick it, rather than Atlas guessing a default
         # that may not be pulled. Shows "detecting…" until the first probe returns.
@@ -816,7 +827,7 @@ class AtlasPanel(Gtk.Box):
 
     # ----- streaming a card ------------------------------------------------
     def start_card(self, kind, title, subtitle, messages, run_target="terminal",
-                   run_pane_id=None):
+                   run_pane_id=None, prompt=None):
         if self._setup in self._cards.get_children():
             self._cards.remove(self._setup)   # kept alive; re-openable via header
         # Bind this card's Run button to the SPECIFIC pane it came from (run_pane_id),
@@ -824,7 +835,7 @@ class AtlasPanel(Gtk.Box):
         # "active" one.
         card = AtlasCard(kind, title, subtitle,
                          on_run=lambda cmd: self.on_run and self.on_run(cmd, run_pane_id),
-                         run_target=run_target)
+                         run_target=run_target, prompt=prompt)
         self._cards.pack_start(card, False, False, 0)
         self._scroll_end()
         def on_err(m):

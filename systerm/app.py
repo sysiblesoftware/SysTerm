@@ -65,6 +65,11 @@ _CSS = b"""
 }
 .atlas-fail { color: #e5a0a2; }
 .atlas-prose { color: #b7c4d4; font-size: 13px; }
+/* The user's question, echoed at the top of an answer card. */
+.atlas-question {
+    color: #9fb0c6; font-size: 12.5px; padding: 6px 9px; margin-bottom: 2px;
+    background: #0b1119; border-radius: 7px; border-left: 2px solid #3560d4;
+}
 .atlas-code {
     background: #080c12; border: 1px solid #1c2430; border-radius: 7px;
     padding: 8px 10px; margin: 4px 0;

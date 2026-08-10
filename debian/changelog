@@ -1,3 +1,14 @@
+systerm (0.2.29) unstable; urgency=medium
+
+  * Atlas: the header "Hide ✕" button is BACK — it was created but never packed
+    into the header when the model selector was added, so the only ✕ was the
+    window's close button ("closes everything"). Relabelled "Hide ✕" with a
+    tooltip making clear it hides the pane (Alt+A), not the window.
+  * Atlas: answer cards now echo your question ("You asked …") above the answer, so
+    a Q&A reads like a conversation.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 06:00:00 +0000
+
 systerm (0.2.28) unstable; urgency=medium
 
   * Atlas: FIX the root cause of "nothing to analyze" and the earlier Analyze

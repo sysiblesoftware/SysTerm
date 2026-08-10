@@ -681,7 +681,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         else:  # ask
             self._atlas.start_card("answer", "ANSWER", "local",
                                    self._atlas_messages(term, question=text),
-                                   run_target=rt, run_pane_id=pid)
+                                   run_target=rt, run_pane_id=pid, prompt=text)
         return False   # in case invoked via idle_add
 
     def _atlas_ask(self, question):
@@ -693,7 +693,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._atlas.start_card("answer", "ANSWER", "local",
                                self._atlas_messages(term, question=question),
                                run_target=self._atlas_run_target(term),
-                               run_pane_id=getattr(term, "atlas_id", None))
+                               run_pane_id=getattr(term, "atlas_id", None),
+                               prompt=question)
 
     def _atlas_analyze_active(self, term=None):
         if self._atlas is None:
