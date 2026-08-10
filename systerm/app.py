@@ -201,6 +201,13 @@ def _has_display(argv):
 def main(argv=None):
     import sys
     argv = argv if argv is not None else sys.argv
+    # `--version` is a cheap liveness probe (used by the sysible-term fallback
+    # shim to check SysTerm can import before handing it the session). It must
+    # print and exit without a display or a window.
+    if any(a in ("--version", "-V") for a in argv[1:]):
+        from . import __version__
+        sys.stdout.write("SysTerm %s\n" % __version__)
+        return 0
     clean_argv, command, cwd = parse_terminal_args(argv)
     if not _has_display(clean_argv):
         sys.stderr.write(_NO_DISPLAY)
