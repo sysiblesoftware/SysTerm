@@ -1,3 +1,13 @@
+systerm (0.2.15) unstable; urgency=medium
+
+  * Theme: unify the terminal and Atlas backgrounds on one dark navy (#0d1320) so
+    the pane and terminal read as a single surface, matching the design mockup —
+    no more black-terminal / blue-pane seam. Default foreground softened to a cool
+    light grey (#cdd6e3). (Existing installs: update background/foreground in
+    ~/.config/systerm/config.ini, or delete it to regenerate the new default.)
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 23:00:00 +0000
+
 systerm (0.2.14) unstable; urgency=medium
 
   * Atlas: make model resolution robust — the real reason analysis failed. The

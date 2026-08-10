@@ -20,7 +20,9 @@ _CSS = b"""
 .systerm-broadcast { border: 2px solid #d0a060; }
 
 /* ---- Sysible Atlas companion pane ---- */
-.atlas-panel { background: #0e131b; border-left: 1px solid #1c2430; }
+/* Same navy as the terminal background (config default #0d1320) so the pane and
+   the terminal read as one continuous surface (no black-vs-blue seam). */
+.atlas-panel { background: #0d1320; border-left: 1px solid #1c2430; }
 .atlas-header {
     padding: 10px 12px; background: #0b1017; border-bottom: 1px solid #1c2430;
 }

@@ -62,8 +62,10 @@ class Config:
         self.font = "Monospace 11"
         self.scrollback_lines = 10000
         self.cursor_shape = "block"          # block | ibeam | underline
-        self.foreground = "#d0d0d0"
-        self.background = "#141414"
+        # Cohesive dark-navy backdrop shared with the Atlas pane (no black-vs-blue
+        # split): the terminal and the companion read as one surface.
+        self.foreground = "#cdd6e3"
+        self.background = "#0d1320"
         self.palette = list(DEFAULT_PALETTE)
         self.audible_bell = False
         self.keys = dict(DEFAULT_KEYS)
@@ -140,8 +142,8 @@ DEFAULT_CONFIG_TEXT = """\
 font = Monospace 11
 scrollback_lines = 10000
 cursor_shape = block
-foreground = #d0d0d0
-background = #141414
+foreground = #cdd6e3
+background = #0d1320
 audible_bell = false
 # 16 comma-separated hex colours (normal 0-7, bright 8-15); leave blank for default.
 # palette =
