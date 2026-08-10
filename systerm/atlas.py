@@ -106,24 +106,34 @@ class AtlasControl:
         self.path = None
         self._dir = None
         self._fd = -1
+        self._chan = None
         self._src = 0
         self._buf = b""
 
     def start(self):
+        # Never let a failure here stop SysTerm from opening — Atlas is optional.
+        # Use GLib.io_add_watch (present on every GLib) rather than
+        # unix_fd_add_full, whose availability/signature varies. On any failure we
+        # tear down and return None; the terminal runs fine without the channel.
         try:
             self._dir = tempfile.mkdtemp(prefix="systerm-atlas-")
             self.path = os.path.join(self._dir, "ctl")
             os.mkfifo(self.path, 0o600)
             # O_RDWR so the reader never sees EOF as writers (shells) come and go.
             self._fd = os.open(self.path, os.O_RDWR | os.O_NONBLOCK)
-            self._src = GLib.unix_fd_add_full(
-                GLib.PRIORITY_DEFAULT, self._fd, GLib.IOCondition.IN, self._on_io)
+            self._chan = GLib.IOChannel.unix_new(self._fd)
+            try:
+                self._chan.set_encoding(None)
+                self._chan.set_buffered(False)
+            except Exception:
+                pass
+            self._src = GLib.io_add_watch(self._chan, GLib.IOCondition.IN, self._on_io)
             return self.path
-        except OSError:
+        except Exception:
             self.stop()
             return None
 
-    def _on_io(self, _fd, _cond):
+    def _on_io(self, _chan, _cond):
         try:
             data = os.read(self._fd, 65536)
         except (BlockingIOError, OSError):
@@ -149,8 +159,12 @@ class AtlasControl:
 
     def stop(self):
         if self._src:
-            GLib.source_remove(self._src)
+            try:
+                GLib.source_remove(self._src)
+            except Exception:
+                pass
             self._src = 0
+        self._chan = None
         if self._fd >= 0:
             try:
                 os.close(self._fd)

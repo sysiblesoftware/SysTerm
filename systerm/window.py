@@ -41,26 +41,46 @@ class SysTermWindow(Gtk.ApplicationWindow):
 
         # Sysible Atlas companion: a control FIFO the shells write to, a local
         # model client, and the companion pane docked to the right of the tabs.
-        # The pane is hidden until you open it (Alt+A) or a command fails.
-        self._atlas_client = _atlas.AtlasClient()
-        self._atlas_ctl = _atlas.AtlasControl(self._on_atlas_event)
-        self._atlas_sock = self._atlas_ctl.start()
-        self._atlas = _atlas.AtlasPanel(self._atlas_client)
-        self._atlas.on_ask = self._atlas_ask
-        self._atlas.on_run = self._atlas_run
-        self._atlas.on_analyze = self._atlas_analyze_active
-        self._atlas_term = None      # pane the current answer relates to
+        # The pane is hidden until you open it (Alt+A) or a command fails. ALL of
+        # this is optional: if any part fails to initialise (missing GLib bits, a
+        # sandboxed FIFO, etc.) SysTerm must still open as a plain terminal, so it
+        # is wrapped and the window falls back to just the notebook.
+        self._atlas = None
+        self._atlas_ctl = None
+        self._atlas_sock = None
+        self._atlas_paned = None
+        self._atlas_term = None
+        try:
+            self._atlas_client = _atlas.AtlasClient()
+            self._atlas_ctl = _atlas.AtlasControl(self._on_atlas_event)
+            self._atlas_sock = self._atlas_ctl.start()
+            self._atlas = _atlas.AtlasPanel(self._atlas_client)
+            self._atlas.on_ask = self._atlas_ask
+            self._atlas.on_run = self._atlas_run
+            self._atlas.on_analyze = self._atlas_analyze_active
+        except Exception as e:
+            self._atlas = None
+            try:
+                if self._atlas_ctl is not None:
+                    self._atlas_ctl.stop()
+            except Exception:
+                pass
+            print("SysTerm: Atlas companion disabled (%s)" % e)
 
-        self._atlas_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-        self._atlas_paned.set_wide_handle(True)
-        self._atlas_paned.pack1(self.notebook, True, True)
-        self._atlas_paned.pack2(self._atlas, False, False)
-        self.add(self._atlas_paned)
-        self.connect("destroy", lambda *_: self._atlas_ctl.stop())
+        if self._atlas is not None:
+            self._atlas_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+            self._atlas_paned.set_wide_handle(True)
+            self._atlas_paned.pack1(self.notebook, True, True)
+            self._atlas_paned.pack2(self._atlas, False, False)
+            self.add(self._atlas_paned)
+            self.connect("destroy", lambda *_: self._atlas_ctl and self._atlas_ctl.stop())
+        else:
+            self.add(self.notebook)   # plain terminal — no companion
 
         self._install_actions(app)
         self.new_tab()
-        GLib.idle_add(self._atlas.hide)   # collapsed by default
+        if self._atlas is not None:
+            GLib.idle_add(self._atlas.hide)   # collapsed by default
 
     # ===== tabs ============================================================
     def new_tab(self):
@@ -491,6 +511,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
 
     # ===== Sysible Atlas ===================================================
     def toggle_atlas(self):
+        if self._atlas is None:
+            return
         if self._atlas.get_visible():
             self._atlas.hide()
             self._focus_current()
@@ -499,6 +521,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._atlas.focus_ask()
 
     def _show_atlas(self):
+        if self._atlas is None:
+            return
         if not self._atlas.get_visible():
             self._atlas.show()
             alloc = self._atlas_paned.get_allocation()
@@ -532,6 +556,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
     def _on_atlas_event(self, kind, pane_id, exit_code, text):
         """Fired from the control FIFO (main loop). text is the command (error)
         or the question (ask)."""
+        if self._atlas is None:
+            return False
         term = self._term_by_id(pane_id) or self._active_terminal()
         self._atlas_term = term
         self._show_atlas()
@@ -546,6 +572,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
         return False   # in case invoked via idle_add
 
     def _atlas_ask(self, question):
+        if self._atlas is None:
+            return
         term = self._atlas_term or self._active_terminal()
         self._atlas_term = term
         self._show_atlas()
@@ -553,6 +581,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
                                self._atlas_messages(term, question=question))
 
     def _atlas_analyze_active(self):
+        if self._atlas is None:
+            return
         term = self._active_terminal()
         if term is None:
             return
