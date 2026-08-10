@@ -17,7 +17,22 @@ scrollback) is solid — SysTerm adds the tiling, tabs, broadcast, and config.
 > Status: **v0.1 (MVP)** — usable daily. Splits, tabs, broadcast, per-pane font
 > zoom, pane zoom, configurable keys and profile all work. See the roadmap.
 
-## Install (Debian / Ubuntu)
+## Install
+
+**Any distro, one line** — installs the runtime deps (GTK3 + VTE), SysTerm, the
+desktop entry + icons, and the Sysible Atlas shell hooks. Works on Debian/Ubuntu,
+Fedora, Arch, and openSUSE:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/sysiblesoftware/SysTerm/dev/install.sh | sh
+```
+
+Or from a checkout: `sudo ./install.sh` (system-wide) · `./install.sh --user`
+(no root, under `~/.local`) · `sudo ./install.sh --uninstall` to remove. The
+installer maps dependencies per package manager (`apt`/`dnf`/`pacman`/`zypper`)
+and installs SysTerm as a plain module + launcher (no pip needed).
+
+### Manual (Debian / Ubuntu)
 
 SysTerm's GTK/VTE bindings are **system packages**, not pip wheels:
 
