@@ -1,3 +1,18 @@
+systerm (0.2.20) unstable; urgency=medium
+
+  * Atlas: picking a model in the selector is now STICKY — the auto-resolver no
+    longer overrides your explicit choice on the next request (it only re-picks if
+    the pinned model is no longer installed). Fixes "switched model but it reverts /
+    can't find it".
+  * Atlas: default model is chosen by hardware — the 7B (needs ~6 GB resident) on
+    machines with >=12 GB RAM, otherwise the fast 1.5B. The selector still lets you
+    switch, and it falls back to whatever is actually installed.
+  * Atlas: added a worked example to the system prompt (kubectl not found ->
+    sudo snap install kubectl) — few-shot anchoring markedly improves a small
+    model's format and its use of install hints.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 01:30:00 +0000
+
 systerm (0.2.19) unstable; urgency=medium
 
   * Atlas: better fixes from small models. Feed a FOCUSED slice of the buffer (last

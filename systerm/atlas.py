@@ -34,7 +34,34 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib, Pango  # noqa: E402
 
 DEFAULT_URL = (os.environ.get("SYSIBLE_AI_URL") or "http://127.0.0.1:11434").rstrip("/")
-DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or "qwen2.5-coder:1.5b"
+
+BIG_MODEL = "qwen2.5-coder:7b"      # sharper; needs a healthy amount of RAM
+SMALL_MODEL = "qwen2.5-coder:1.5b"  # fast/light; fine on modest VMs
+
+
+def _total_ram_gb():
+    try:
+        with open("/proc/meminfo", encoding="ascii") as f:
+            for line in f:
+                if line.startswith("MemTotal:"):
+                    return int(line.split()[1]) / (1024 * 1024)   # kB -> GiB
+    except Exception:
+        pass
+    try:
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / (1024 ** 3)
+    except (ValueError, OSError, AttributeError):
+        return 0.0
+
+
+def _preferred_model():
+    """Pick a sensible default by hardware: the 7B (Q4) needs ~6 GB resident, so
+    only prefer it on machines with real headroom; otherwise the fast 1.5B. The
+    header selector still lets the user switch, and pick_model() falls back to
+    whatever is actually installed."""
+    return BIG_MODEL if _total_ram_gb() >= 12 else SMALL_MODEL
+
+
+DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or _preferred_model()
 
 SYSTEM_PROMPT = (
     "You are Sysible Atlas, a terse Linux troubleshooting companion inside the "
@@ -55,7 +82,15 @@ SYSTEM_PROMPT = (
     "Add a one-line **Note** ONLY if a command is destructive; otherwise omit the "
     "Note entirely — never write 'No error' as a Note. No preamble, no restating "
     "the task, no explaining what a message 'means'. If there is genuinely no "
-    "error to fix, reply with ONLY: 'No error — <one short line>.' and no Cause/Fix."
+    "error to fix, reply with ONLY: 'No error — <one short line>.' and no Cause/Fix.\n"
+    "\n"
+    "Example.\n"
+    "Input — command that failed: kubectl (exit 127); output: \"Command 'kubectl' "
+    "not found, but can be installed with: sudo snap install kubectl\"\n"
+    "Correct reply:\n"
+    "**Cause** kubectl is not installed.\n"
+    "**Fix**\n"
+    "```\nsudo snap install kubectl\n```"
 )
 
 
@@ -71,6 +106,9 @@ class AtlasClient:
     def __init__(self, url=DEFAULT_URL, model=DEFAULT_MODEL):
         self.url = url
         self.model = model
+        # True once the user explicitly picks a model in the header selector, so
+        # the auto-resolver stops overriding their choice on the next request.
+        self.pinned = False
         # Ollama is ALWAYS local, so never route these requests through a proxy.
         # urllib otherwise honors http_proxy/all_proxy from the environment and
         # tries to reach 127.0.0.1:11434 via the proxy, which accepts and closes
@@ -165,9 +203,10 @@ class AtlasClient:
         """Point at a currently-downloaded model right before a request, so a
         request never targets a model that isn't pulled (which, with Ollama cloud
         enabled, hangs or closes the connection). Returns the model list so the
-        caller can decide what to do when nothing is installed."""
+        caller can decide what to do when nothing is installed. A model the user
+        pinned via the selector is kept as long as it's still installed."""
         models = self.list_models()
-        if models:
+        if models and not (self.pinned and self.model in models):
             self.pick_model(models)
         return models
 
@@ -577,6 +616,7 @@ class AtlasPanel(Gtk.Box):
         m = combo.get_active_text()
         if m and "…" not in m:
             self._client.model = m
+            self._client.pinned = True   # honor this until they pick again
             self._refresh_footer()
 
     def _build_ask(self):
@@ -701,7 +741,8 @@ class AtlasPanel(Gtk.Box):
         # Drive the header selector from what's actually installed (so you pick
         # from real models, not a guessed default), and point the client at one
         # that exists so Ask/Analyze work.
-        if state["models"]:
+        if state["models"] and not (self._client.pinned
+                                     and self._client.model in state["models"]):
             self._client.pick_model(state["models"])
         self._refresh_model_labels(state["models"])
         for c in self._setup_status.get_children():
