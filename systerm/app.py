@@ -33,6 +33,8 @@ _CSS = b"""
 }
 .atlas-ghost { color: #8ea1b8; border-color: #263041; }
 .atlas-ghost:hover, .atlas-run:hover { background: rgba(92,199,70,.10); }
+.atlas-close { color: #8ea1b8; padding: 3px 8px; font-size: 13px; }
+.atlas-close:hover { background: rgba(229,72,77,.14); color: #e5a0a2; border-color: rgba(229,72,77,.40); }
 .atlas-card {
     background: #0c121a; border: 1px solid #1c2430; border-radius: 10px;
     padding: 11px 13px; border-left: 3px solid #263041;

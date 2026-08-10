@@ -1,3 +1,12 @@
+systerm (0.2.7) unstable; urgency=medium
+
+  * Atlas: add a ✕ close button to the pane header. Closing only hides the pane —
+    the widget and every card are kept, so the full conversation history is intact
+    when you reopen it (✕, Alt+A, the right-click entry, or a caught error). Muted
+    styling that turns red on hover.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 15:00:00 +0000
+
 systerm (0.2.6) unstable; urgency=medium
 
   * Atlas: FIX the real reason the companion never appeared. The footer built its

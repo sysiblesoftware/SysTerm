@@ -328,6 +328,7 @@ class AtlasPanel(Gtk.Box):
         self.on_ask = None
         self.on_run = None
         self.on_analyze = None
+        self.on_close = None
         self.get_style_context().add_class("atlas-panel")
         self.set_size_request(360, -1)
 
@@ -362,6 +363,15 @@ class AtlasPanel(Gtk.Box):
         title = Gtk.Label(xalign=0.0)
         title.set_markup("<b>Sysible Atlas</b>  <span alpha='55%'>· watching</span>")
         head.pack_start(title, False, False, 0)
+        # Close (hide) the pane. Hiding keeps the widget alive, so every card and
+        # the whole conversation history is preserved — reopening (Alt+A, the
+        # right-click entry, or a caught error) shows exactly where you left off.
+        close = Gtk.Button(label="✕")
+        close.get_style_context().add_class("atlas-ghost")
+        close.get_style_context().add_class("atlas-close")
+        close.set_tooltip_text("Close Atlas (Alt+A) — history is kept")
+        close.connect("clicked", lambda *_: self.on_close and self.on_close())
+        head.pack_end(close, False, False, 0)
         setup = Gtk.Button(label="Setup")
         setup.get_style_context().add_class("atlas-ghost")
         setup.set_tooltip_text("Install Ollama / download a model")

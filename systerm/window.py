@@ -64,6 +64,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._atlas.on_ask = self._atlas_ask
             self._atlas.on_run = self._atlas_run
             self._atlas.on_analyze = self._atlas_analyze_active
+            self._atlas.on_close = self._hide_atlas
         except Exception as e:
             self._atlas = None
             print("SysTerm: Atlas companion disabled (%s)" % e)
@@ -562,6 +563,14 @@ class SysTermWindow(Gtk.ApplicationWindow):
             return
         self._show_atlas()
         self._atlas.focus_ask()
+
+    def _hide_atlas(self):
+        """Hide the companion (the pane's ✕ button). hide() keeps the widget and
+        all its cards, so the conversation history is intact when it reopens."""
+        if self._atlas is None:
+            return
+        self._atlas.hide()
+        self._focus_current()
 
     def _show_atlas(self):
         if self._atlas is None:
