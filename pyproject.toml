@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "systerm"
-version = "0.2.24"
+version = "0.2.25"
 description = "A native GTK/VTE tiling terminal (Terminator-style) for Debian-based systems."
 readme = "README.md"
 license = { text = "MIT" }

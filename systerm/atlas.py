@@ -101,9 +101,16 @@ QUESTION_PROMPT = (
     "directly and practically — a few lines. Put any command(s) in a ```fenced``` "
     "block, ready to run and correct for Debian/Ubuntu. Use the terminal context "
     "only if relevant to the question. If the request is ambiguous, state your "
-    "assumption in one short line, then answer. Never invent package names, flags, "
-    "hosts, or output. Do NOT use a Cause/Fix layout and never begin with "
-    "'No error' — those are only for diagnosing a failed command."
+    "assumption in one short line, then answer. Emit only commands that are VALID "
+    "for the tool you name — correct subcommands/flags/modules — and never mix a "
+    "shell package-manager's flags into another tool. If unsure of exact syntax, "
+    "give the tool's standard documented form, not a guess. Never invent package "
+    "names, flags, hosts, or output. Do NOT use a Cause/Fix layout and never begin "
+    "with 'No error' — those are only for diagnosing a failed command.\n"
+    "Reference — Ansible ad-hoc is: ansible <pattern> -m <module> -a "
+    "\"key=value ...\" [--become]. To install a package everywhere: "
+    "ansible all -m apt -a \"name=<pkg> state=present\" --become  (module is 'apt', "
+    "NOT 'apt-get'; state=present, not '-y install')."
 )
 
 

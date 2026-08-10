@@ -1,3 +1,13 @@
+systerm (0.2.25) unstable; urgency=medium
+
+  * Atlas: question prompt now insists on tool-valid syntax (no mixing a shell
+    package manager's flags into another tool) and primes the canonical Ansible
+    ad-hoc form (ansible <pattern> -m apt -a "name=<pkg> state=present" --become),
+    since Ansible is core to this distro. Improves even the small model on that
+    common case; deeper domain accuracy still favours the 7b model.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 04:00:00 +0000
+
 systerm (0.2.24) unstable; urgency=medium
 
   * Theme: default terminal font is now a crisper Monospace 10 (was 11) to match
