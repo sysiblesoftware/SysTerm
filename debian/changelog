@@ -1,3 +1,12 @@
+systerm (0.2.24) unstable; urgency=medium
+
+  * Theme: default terminal font is now a crisper Monospace 10 (was 11) to match
+    the Atlas pane's sharp look while keeping column alignment. Existing installs
+    keep their config value — set `font = Monospace 10` in
+    ~/.config/systerm/config.ini, or delete the file to pick up the new default.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 03:30:00 +0000
+
 systerm (0.2.23) unstable; urgency=medium
 
   * Atlas: manual Analyze now pulls the actual last command out of the scrollback

@@ -60,7 +60,9 @@ class Config:
     the app never touches configparser."""
 
     def __init__(self):
-        self.font = "Monospace 11"
+        # Crisper, slightly smaller monospace to match the Atlas pane's sharp look
+        # (keeps column alignment, unlike a proportional font).
+        self.font = "Monospace 10"
         self.scrollback_lines = 10000
         self.cursor_shape = "block"          # block | ibeam | underline
         # Cohesive dark-navy backdrop shared with the Atlas pane (no black-vs-blue
@@ -140,7 +142,7 @@ def _as_bool(val, default):
 DEFAULT_CONFIG_TEXT = """\
 # SysTerm configuration. Delete a line to fall back to its built-in default.
 [profile]
-font = Monospace 11
+font = Monospace 10
 scrollback_lines = 10000
 cursor_shape = block
 foreground = #cdd6e3
