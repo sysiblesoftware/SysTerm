@@ -119,7 +119,22 @@ class AtlasClient:
         threading.Thread(target=self._run, args=(messages, emit, done, fail),
                          daemon=True).start()
 
+    def _resolve_model(self):
+        """Point at a currently-downloaded model right before a request. The
+        startup probe may have run before Ollama was ready (models empty → default
+        kept), so a request could target a model that isn't pulled. Re-check the
+        live tag list every time. Best-effort; leaves the model as-is on failure."""
+        try:
+            with self._opener.open(self.url + "/api/tags", timeout=5) as r:
+                data = json.load(r)
+            models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+            if models:
+                self.pick_model(models)
+        except Exception:
+            pass
+
     def _run(self, messages, emit, done, fail):
+        self._resolve_model()
         payload = {"model": self.model, "messages": messages, "stream": True}
         got = 0
         try:
@@ -422,6 +437,12 @@ class AtlasPanel(Gtk.Box):
         self.pack_start(self._build_ask(), False, False, 0)
         self.pack_start(self._build_footer(), False, False, 0)
         self.show_all()
+
+        # Re-probe whenever the pane becomes visible (opened via Alt+A / right-
+        # click). Ollama may not have been ready at startup; this keeps the setup
+        # state fresh and, crucially, re-picks a downloaded model so the badge and
+        # the next ask target a model that's actually installed.
+        self.connect("map", lambda *_: self.refresh_setup())
 
     # ----- chrome ----------------------------------------------------------
     def _build_header(self):

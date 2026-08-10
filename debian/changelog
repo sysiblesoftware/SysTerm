@@ -1,3 +1,14 @@
+systerm (0.2.13) unstable; urgency=medium
+
+  * Atlas: THE actual fix for "won't analyze". The server was reachable all along;
+    the request just targeted qwen2.5-coder:7b when the only pulled model was
+    qwen2.5-coder:1.5b. Model auto-select previously ran only on a Setup-card
+    refresh, so if Ollama wasn't ready at startup the default stuck. Now resolve
+    the model against the live /api/tags list right before EVERY request, and
+    re-probe (re-pick + refresh the badge/footer) whenever the pane is opened.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 21:00:00 +0000
+
 systerm (0.2.12) unstable; urgency=medium
 
   * Atlas: FIX "can't reach the model server" when Ollama is actually running.
