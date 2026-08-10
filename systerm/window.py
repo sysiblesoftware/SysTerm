@@ -673,7 +673,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         rt = self._atlas_run_target(term)
         pid = getattr(term, "atlas_id", None)
         if kind == "error":
-            title = "CAUGHT · EXIT %s" % exit_code
+            title = "COMMAND FAILED · EXIT %s" % exit_code
             self._atlas.start_card("error", title, text,
                                    self._atlas_messages(term, command=text,
                                                         exit_code=exit_code),

@@ -1,3 +1,12 @@
+systerm (0.2.27) unstable; urgency=medium
+
+  * Theme: default terminal font is now Monospace 9 (was 10/11) — the compact size
+    most testers settle on. Bump with Ctrl++ or set `font` in config.ini.
+  * Atlas: relabel the caught-failure card from "CAUGHT · EXIT n" to the more
+    professional "COMMAND FAILED · EXIT n".
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 05:00:00 +0000
+
 systerm (0.2.26) unstable; urgency=medium
 
   * Atlas: no more "zombie" catch on first launch. The first PROMPT_COMMAND of each
