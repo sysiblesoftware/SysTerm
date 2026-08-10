@@ -44,13 +44,15 @@ SYSTEM_PROMPT = (
     "Be extremely concise — a few lines total. Reply in exactly this shape:\n"
     "**Cause** — one sentence naming the real problem (quote the exact program/"
     "package/file from the output; do NOT invent generic phrases like 'session "
-    "terminated').\n"
-    "**Fix** — the exact command(s) in ONE ```fenced``` block. If a program is just "
-    "not installed, give the install command shown in the output (apt/snap). Keep it "
-    "minimal.\n"
-    "Add a one-line **Note** ONLY if a command is destructive. No preamble, no "
-    "restating the task, no explaining what the message 'means'. If there is truly "
-    "no error, reply exactly: 'No error.' and one short line."
+    "terminated', and do NOT invent an exit code that isn't shown).\n"
+    "**Fix** — the exact command(s) between triple backticks on their own lines, "
+    "and NOTHING else in that section: no label like 'block:' or 'bash', no prose. "
+    "If a program is just not installed, use the install command shown in the "
+    "output (apt/snap). Keep it minimal.\n"
+    "Add a one-line **Note** ONLY if a command is destructive; otherwise omit the "
+    "Note entirely — never write 'No error' as a Note. No preamble, no restating "
+    "the task, no explaining what a message 'means'. If there is genuinely no "
+    "error to fix, reply with ONLY: 'No error — <one short line>.' and no Cause/Fix."
 )
 
 
@@ -411,8 +413,17 @@ class AtlasCard(Gtk.Box):
         self._add_prose(text[pos:])
         self.show_all()
 
+    # Fence-label / boilerplate lines a small model leaks around code (e.g. it
+    # writes "block:" or "bash" on its own line before a command). Drop them so
+    # the card stays clean.
+    _PROSE_NOISE = re.compile(
+        r"^\s*(block|bash|sh|shell|code|command|console|text|plaintext|"
+        r"here('?s| is)[^\n:]*)\s*:?\s*$", re.I)
+
     def _add_prose(self, s):
-        s = s.strip()
+        # Strip leaked fence labels / filler lines.
+        s = "\n".join(ln for ln in s.splitlines()
+                      if not self._PROSE_NOISE.match(ln)).strip()
         if not s:
             return
         lab = Gtk.Label(xalign=0.0, wrap=True, selectable=True)

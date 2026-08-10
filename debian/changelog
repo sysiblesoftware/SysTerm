@@ -1,3 +1,14 @@
+systerm (0.2.18) unstable; urgency=medium
+
+  * Atlas: clean up small-model answer artifacts. Strip leaked fence-label / filler
+    lines (e.g. a stray "block:" or "bash" before a command) from rendered prose,
+    and harden the prompt: don't invent an exit code that isn't shown, put nothing
+    but the command between the backticks, and never write "No error" as a Note
+    (omit the Note unless a command is destructive). The auto-catch card (real
+    command + exit code) was already solid; this mainly tidies the manual Analyze.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 00:30:00 +0000
+
 systerm (0.2.17) unstable; urgency=medium
 
   * Atlas: faster and more to-the-point answers. Cap the reply length
