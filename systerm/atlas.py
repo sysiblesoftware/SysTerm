@@ -207,6 +207,28 @@ class AtlasCard(Gtk.Box):
         self._live.set_text(message)
         self._live.get_style_context().add_class("atlas-fail")
 
+    def add_recovery(self, on_run, model):
+        """When the model server is down or the model isn't downloaded, offer
+        one-click fixes that run in the terminal (so you see live progress) —
+        this is the 'give me a model to download' picker."""
+        wrap = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        wrap.get_style_context().add_class("atlas-recovery")
+        opts = [
+            ("▸  Start the Ollama server", "sudo systemctl start ollama"),
+            ("▾  Download %s  (code, ~4.7 GB)" % model, "ollama pull %s" % model),
+            ("▾  Download llama3.2:3b  (small, ~2 GB)", "ollama pull llama3.2:3b"),
+            ("▾  Download qwen2.5-coder:1.5b  (tiny, ~1 GB)",
+             "ollama pull qwen2.5-coder:1.5b"),
+        ]
+        for label, cmd in opts:
+            b = Gtk.Button(label=label)
+            b.get_style_context().add_class("atlas-run")
+            b.set_halign(Gtk.Align.START)
+            b.connect("clicked", lambda _w, c=cmd: on_run(c))
+            wrap.pack_start(b, False, False, 0)
+        self.pack_start(wrap, False, False, 0)
+        self.show_all()
+
     def finish(self):
         """Render the final answer: prose as wrapped text, fenced blocks as a
         monospace box with a Run-in-terminal button per command line."""
@@ -355,11 +377,17 @@ class AtlasPanel(Gtk.Box):
                          on_run=lambda cmd: self.on_run and self.on_run(cmd))
         self._cards.pack_start(card, False, False, 0)
         self._scroll_end()
+        def on_err(m):
+            card.error_text(m)
+            card.add_recovery(lambda cmd: self.on_run and self.on_run(cmd),
+                              self._client.model)
+            self._scroll_end()
+            return False
         self._client.stream(
             messages,
             on_chunk=lambda c: (card.append_text(c), self._scroll_end()) and False,
             on_done=lambda: (card.finish(), self._scroll_end()) and False,
-            on_error=lambda m: (card.error_text(m), self._scroll_end()) and False,
+            on_error=on_err,
         )
         return card
 
