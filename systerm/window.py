@@ -618,9 +618,13 @@ class SysTermWindow(Gtk.ApplicationWindow):
         or the question (ask)."""
         if self._atlas is None:
             return False
+        # Auto-catch is opt-in by *having Atlas open*. A failed command must NOT
+        # pop the pane open on its own — the user opens Atlas when they want it
+        # watching (Alt+A / right-click), and only then do caught errors appear.
+        if not self._atlas.get_visible():
+            return False
         term = self._term_by_id(pane_id) or self._active_terminal()
         self._atlas_term = term
-        self._show_atlas()
         rt = self._atlas_run_target(term)
         if kind == "error":
             title = "CAUGHT · EXIT %s" % exit_code

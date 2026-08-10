@@ -1,3 +1,16 @@
+systerm (0.2.12) unstable; urgency=medium
+
+  * Atlas: FIX "can't reach the model server" when Ollama is actually running.
+    urllib honored http_proxy/all_proxy from the environment and routed the local
+    127.0.0.1:11434 request through the proxy, which closed it ("Remote end closed
+    connection without response"). Ollama is always local — disable proxies for
+    Atlas's requests (empty ProxyHandler) so it talks to the server directly.
+  * Atlas: a caught command failure no longer pops the pane open. Auto-catch is
+    now opt-in by having Atlas open (Alt+A / right-click) — when it's closed,
+    failed commands are ignored instead of forcing it visible.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 20:00:00 +0000
+
 systerm (0.2.11) unstable; urgency=medium
 
   * Atlas: never leave a blank, buttonless card. The streaming worker died on any

@@ -54,6 +54,12 @@ class AtlasClient:
     def __init__(self, url=DEFAULT_URL, model=DEFAULT_MODEL):
         self.url = url
         self.model = model
+        # Ollama is ALWAYS local, so never route these requests through a proxy.
+        # urllib otherwise honors http_proxy/all_proxy from the environment and
+        # tries to reach 127.0.0.1:11434 via the proxy, which accepts and closes
+        # the connection ("Remote end closed connection without response") even
+        # though the server is running fine. An empty ProxyHandler disables that.
+        self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
 
     def pick_model(self, models):
         """Point the client at a model that's actually downloaded. Prefer the
@@ -92,7 +98,7 @@ class AtlasClient:
                  "/opt/ollama/ollama", os.path.expanduser("~/.local/bin/ollama")))
             server, models = False, []
             try:
-                with urllib.request.urlopen(self.url + "/api/tags", timeout=3) as r:
+                with self._opener.open(self.url + "/api/tags", timeout=3) as r:
                     data = json.load(r)
                 server = True
                 models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
@@ -120,7 +126,7 @@ class AtlasClient:
             req = urllib.request.Request(
                 self.url + "/api/chat", data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json"}, method="POST")
-            with urllib.request.urlopen(req, timeout=300) as r:
+            with self._opener.open(req, timeout=300) as r:
                 for line in r:
                     line = line.strip()
                     if not line:
