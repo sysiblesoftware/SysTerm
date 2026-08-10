@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
   <defs>
+    <!-- Sysible brand blue (#79a0ff) for the hexagon frame, matching the logo. -->
     <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#7ed268"/>
-      <stop offset="1" stop-color="#2f7d3a"/>
+      <stop offset="0" stop-color="#79a0ff"/>
+      <stop offset="1" stop-color="#2f4d9e"/>
     </linearGradient>
     <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#0e1622"/>
-      <stop offset="1" stop-color="#0a0f18"/>
+      <stop offset="0" stop-color="#101828"/>
+      <stop offset="1" stop-color="#0a0f1c"/>
     </linearGradient>
   </defs>
   <!-- Sysible hexagon as a terminal screen. -->
   <path d="M64 9 L111 36.5 L111 91.5 L64 119 L17 91.5 L17 36.5 Z"
         fill="url(#screen)" stroke="url(#edge)" stroke-width="5" stroke-linejoin="miter"/>
-  <!-- The universal terminal prompt: >_  (chevron + underscore cursor), in
-       Sysible green. Unmistakably "command line", not an abstract shape. -->
-  <path d="M40 46 L59 64 L40 82" fill="none" stroke="#5cc746"
+  <!-- The universal terminal prompt: >_  (chevron + underscore cursor), in the
+       Sysible brand green (#6ddb73). Blue frame + green prompt = logo palette. -->
+  <path d="M40 46 L59 64 L40 82" fill="none" stroke="#6ddb73"
         stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
-  <rect x="65" y="76" width="27" height="8" rx="4" fill="#5cc746"/>
+  <rect x="65" y="76" width="27" height="8" rx="4" fill="#6ddb73"/>
 </svg>
