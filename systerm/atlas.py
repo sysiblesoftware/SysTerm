@@ -115,6 +115,7 @@ class AtlasClient:
 
     def _run(self, messages, emit, done, fail):
         payload = {"model": self.model, "messages": messages, "stream": True}
+        got = 0
         try:
             req = urllib.request.Request(
                 self.url + "/api/chat", data=json.dumps(payload).encode(),
@@ -124,12 +125,27 @@ class AtlasClient:
                     line = line.strip()
                     if not line:
                         continue
-                    msg = json.loads(line)
+                    try:
+                        msg = json.loads(line)
+                    except ValueError:
+                        # A non-JSON line (proxy/error page on the port) must not
+                        # kill the stream thread — that left an empty, buttonless
+                        # card with no error. Skip it.
+                        continue
                     if msg.get("error"):
                         return fail(str(msg["error"]))
                     chunk = msg.get("message", {}).get("content", "")
                     if chunk:
+                        got += len(chunk)
                         emit(chunk)
+            if got == 0:
+                # Completed cleanly but produced nothing — usually the model isn't
+                # actually pulled, or the port isn't really Ollama. Say so instead
+                # of leaving a blank card.
+                return fail(
+                    "no output from the model at %s. Is the server up and is '%s' "
+                    "pulled? Use the buttons below, or run:  ollama pull %s"
+                    % (self.url, self.model, self.model))
             done()
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace")
@@ -138,9 +154,13 @@ class AtlasClient:
                      % (self.model, self.model))
             else:
                 fail("model server error %s: %s" % (e.code, body[:200]))
-        except (urllib.error.URLError, OSError, http.client.HTTPException):
-            fail("no local model server at %s — start it:  sudo systemctl start ollama"
-                 % self.url)
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+            fail("can't reach a model server at %s (%s) — start it:  "
+                 "sudo systemctl start ollama   (or: ollama serve)" % (self.url, e))
+        except Exception as e:
+            # Absolute backstop: any other error becomes a visible message, never
+            # a silently dead thread + blank card.
+            fail("model request failed: %s" % e)
 
 
 # --------------------------------------------------------------------------- #

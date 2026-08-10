@@ -1,3 +1,15 @@
+systerm (0.2.11) unstable; urgency=medium
+
+  * Atlas: never leave a blank, buttonless card. The streaming worker died on any
+    non-JSON line (json.loads raised outside the caught exceptions), so a card
+    could sit empty with no answer, no error, and no recovery buttons. Skip
+    malformed lines, add a catch-all so any failure becomes a visible message, and
+    when the stream completes with zero output show a clear "no output — is the
+    server up / is <model> pulled?" message with the recovery buttons. Clearer
+    unreachable-server text (includes the URL + the underlying error).
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 19:00:00 +0000
+
 systerm (0.2.10) unstable; urgency=medium
 
   * Atlas: FIX a regression — the new header model badge reintroduced the exact
