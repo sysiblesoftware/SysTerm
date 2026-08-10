@@ -1,3 +1,16 @@
+systerm (0.2.30) unstable; urgency=medium
+
+  * Atlas: a spinner + "Generating…" placeholder shows while the model works (the
+    progress indicator), stopping when the answer/finish/error lands.
+  * Atlas: nicer failure card — "Command failed" with a small red "exit N" pill
+    instead of the shouty "COMMAND FAILED · EXIT N"; card titles are clean Title
+    Case (Answer / Analysis) with lighter letter-spacing.
+  * Atlas: question prompt now REQUIRES all code/config/playbooks/scripts/file
+    contents in a fenced code block, so generated files render as a code block, not
+    prose.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 06:30:00 +0000
+
 systerm (0.2.29) unstable; urgency=medium
 
   * Atlas: the header "Hide ✕" button is BACK — it was created but never packed

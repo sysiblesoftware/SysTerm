@@ -98,8 +98,11 @@ SYSTEM_PROMPT = (
 QUESTION_PROMPT = (
     "You are Sysible Atlas, a concise Linux/DevOps assistant inside the SysTerm "
     "terminal on Sysible Linux (Debian/Ubuntu; apt). Answer the user's question "
-    "directly and practically — a few lines. Put any command(s) in a ```fenced``` "
-    "block, ready to run and correct for Debian/Ubuntu. Use the terminal context "
+    "directly and practically. Put ALL commands, code, config, playbooks, scripts, "
+    "or file contents inside a ```fenced``` code block (one block per file; a short "
+    "prose line before it is fine) — NEVER paste multi-line code or a file as plain "
+    "prose. Make it ready to run and correct for Debian/Ubuntu. Use the terminal "
+    "context "
     "only if relevant to the question. If the request is ambiguous, state your "
     "assumption in one short line, then answer. Emit only commands that are VALID "
     "for the tool you name — correct subcommands/flags/modules — and never mix a "
@@ -405,7 +408,7 @@ _FENCE = re.compile(r"```[a-zA-Z0-9]*\n?(.*?)```", re.S)
 
 class AtlasCard(Gtk.Box):
     def __init__(self, kind, title, subtitle, on_run, run_target="terminal",
-                 prompt=None):
+                 prompt=None, badge=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self._on_run = on_run
         self._run_target = run_target
@@ -418,6 +421,18 @@ class AtlasCard(Gtk.Box):
         lab = Gtk.Label(xalign=0.0, label=title)
         lab.get_style_context().add_class("atlas-card-title")
         head.pack_start(lab, False, False, 0)
+        # Small status pill (e.g. "exit 127") next to the title — cleaner than
+        # baking the code into an ALL-CAPS title string.
+        if badge:
+            pill = Gtk.Label(label=badge)
+            pill.get_style_context().add_class(
+                "atlas-exit" if kind == "error" else "atlas-tag")
+            head.pack_start(pill, False, False, 0)
+        # A small spinner shows the model is working (from card creation until the
+        # answer finishes) — the "progress" indicator while it generates.
+        self._spinner = Gtk.Spinner()
+        head.pack_start(self._spinner, False, False, 0)
+        self._spinner.start()
         if subtitle:
             sub = Gtk.Label(xalign=1.0, label=subtitle,
                             ellipsize=Pango.EllipsizeMode.MIDDLE)
@@ -434,18 +449,29 @@ class AtlasCard(Gtk.Box):
             self.pack_start(q, False, False, 0)
 
         # Live streaming text (monospace); replaced by a parsed layout on finish.
-        self._live = Gtk.Label(xalign=0.0, label="", wrap=True, selectable=True)
+        # Starts as a dim "Generating…" placeholder until the first token lands.
+        self._live = Gtk.Label(xalign=0.0, label="Generating…", wrap=True,
+                               selectable=True)
         self._live.set_line_wrap_mode(Pango.WrapMode.WORD_CHAR)
         self._live.get_style_context().add_class("atlas-stream")
+        self._live.get_style_context().add_class("atlas-wait")
         self.pack_start(self._live, False, False, 0)
         self.show_all()
 
+    def _stop_spinner(self):
+        self._spinner.stop()
+        self._spinner.hide()
+
     def append_text(self, chunk):
+        if not self._raw:
+            self._live.get_style_context().remove_class("atlas-wait")
         self._raw += chunk
         self._live.set_text(self._raw + " ▏")
 
     def error_text(self, message):
+        self._stop_spinner()
         self._raw = message
+        self._live.get_style_context().remove_class("atlas-wait")
         self._live.set_text(message)
         self._live.get_style_context().add_class("atlas-fail")
 
@@ -474,6 +500,7 @@ class AtlasCard(Gtk.Box):
     def finish(self):
         """Render the final answer: prose as wrapped text, fenced blocks as a
         monospace box with a Run-in-terminal button per command line."""
+        self._stop_spinner()
         text = self._raw.strip()
         self.remove(self._live)
         pos = 0
@@ -827,7 +854,7 @@ class AtlasPanel(Gtk.Box):
 
     # ----- streaming a card ------------------------------------------------
     def start_card(self, kind, title, subtitle, messages, run_target="terminal",
-                   run_pane_id=None, prompt=None):
+                   run_pane_id=None, prompt=None, badge=None):
         if self._setup in self._cards.get_children():
             self._cards.remove(self._setup)   # kept alive; re-openable via header
         # Bind this card's Run button to the SPECIFIC pane it came from (run_pane_id),
@@ -835,7 +862,7 @@ class AtlasPanel(Gtk.Box):
         # "active" one.
         card = AtlasCard(kind, title, subtitle,
                          on_run=lambda cmd: self.on_run and self.on_run(cmd, run_pane_id),
-                         run_target=run_target, prompt=prompt)
+                         run_target=run_target, prompt=prompt, badge=badge)
         self._cards.pack_start(card, False, False, 0)
         self._scroll_end()
         def on_err(m):

@@ -673,13 +673,13 @@ class SysTermWindow(Gtk.ApplicationWindow):
         rt = self._atlas_run_target(term)
         pid = getattr(term, "atlas_id", None)
         if kind == "error":
-            title = "COMMAND FAILED · EXIT %s" % exit_code
-            self._atlas.start_card("error", title, text,
+            self._atlas.start_card("error", "Command failed", text,
                                    self._atlas_messages(term, command=text,
                                                         exit_code=exit_code),
-                                   run_target=rt, run_pane_id=pid)
+                                   run_target=rt, run_pane_id=pid,
+                                   badge="exit %s" % exit_code)
         else:  # ask
-            self._atlas.start_card("answer", "ANSWER", "local",
+            self._atlas.start_card("answer", "Answer", "local",
                                    self._atlas_messages(term, question=text),
                                    run_target=rt, run_pane_id=pid, prompt=text)
         return False   # in case invoked via idle_add
@@ -690,7 +690,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         term = self._atlas_term or self._active_terminal()
         self._atlas_term = term
         self._show_atlas()
-        self._atlas.start_card("answer", "ANSWER", "local",
+        self._atlas.start_card("answer", "Answer", "local",
                                self._atlas_messages(term, question=question),
                                run_target=self._atlas_run_target(term),
                                run_pane_id=getattr(term, "atlas_id", None),
@@ -717,7 +717,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         # Pull the actual last command out of the scrollback and hand it to the
         # model explicitly, so it diagnoses THAT (not a hallucinated example).
         cmd = self._last_command(term)
-        self._atlas.start_card("answer", "ANALYSIS", "local",
+        self._atlas.start_card("answer", "Analysis", "local",
                                self._atlas_messages(term, command=cmd),
                                run_target=self._atlas_run_target(term),
                                run_pane_id=getattr(term, "atlas_id", None))

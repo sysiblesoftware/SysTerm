@@ -57,12 +57,23 @@ _CSS = b"""
 .atlas-card-err { border-left-color: #e5484d; }
 .atlas-card-ans { border-left-color: #5cc746; }
 .atlas-card-title {
-    color: #e7eef6; font-size: 11px; font-weight: bold; letter-spacing: 1px;
+    color: #e7eef6; font-size: 12.5px; font-weight: bold; letter-spacing: .2px;
 }
 .atlas-card-sub { color: #4a5568; font-size: 11px; font-family: monospace; }
+/* Small status pill next to the title: red "exit 127" for failures, muted tag
+   for answers. Cleaner than an ALL-CAPS "COMMAND FAILED - EXIT 127" string. */
+.atlas-exit {
+    color: #e5a0a2; background: rgba(229,72,77,.14); border: 1px solid rgba(229,72,77,.34);
+    border-radius: 999px; padding: 0 8px; font-size: 10.5px; font-family: monospace;
+}
+.atlas-tag {
+    color: #8ea1b8; background: #0b1119; border: 1px solid #1c2430;
+    border-radius: 999px; padding: 0 8px; font-size: 10.5px; font-family: monospace;
+}
 .atlas-stream, .atlas-code-text {
     font-family: monospace; font-size: 12.5px; color: #c7d2e0;
 }
+.atlas-wait { color: #55627a; font-style: italic; }
 .atlas-fail { color: #e5a0a2; }
 .atlas-prose { color: #b7c4d4; font-size: 13px; }
 /* The user's question, echoed at the top of an answer card. */
