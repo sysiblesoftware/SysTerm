@@ -1,3 +1,13 @@
+systerm (0.2.4) unstable; urgency=medium
+
+  * Robustness: never register-then-die on startup. Window construction and the
+    CSS install are now wrapped — a bad config value, a CSS parse error, or an
+    Atlas/GI hiccup logs a traceback instead of taking the whole app down with no
+    window. If the real window can't be built, a minimal single-shell fallback
+    window opens so the user is never locked out of their terminal.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 12:00:00 +0000
+
 systerm (0.2.3) unstable; urgency=medium
 
   * Atlas: open from right-click ("Open Sysible Atlas") or Alt+A and ask in the

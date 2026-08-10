@@ -92,18 +92,49 @@ class SysTermApp(Gtk.Application):
         self.new_window(command=command, cwd=cwd)
 
     def new_window(self, command=None, cwd=None):
-        win = SysTermWindow(self, self.config, command=command, cwd=cwd)
+        try:
+            win = SysTermWindow(self, self.config, command=command, cwd=cwd)
+        except Exception:
+            # A window must open even if something in its construction (a bad
+            # config value, an Atlas/GI hiccup) throws — otherwise the whole app
+            # registers, then dies with no window and the user is locked out of
+            # their terminal. Log it and fall back to a minimal window.
+            import traceback
+            traceback.print_exc()
+            win = self._fallback_window(command=command, cwd=cwd)
         win.show_all()
         win.present()
         return win
 
+    def _fallback_window(self, command=None, cwd=None):
+        """Last-ditch window if the real one can't be built. A plain window with a
+        single VTE shell, so the user still has a terminal."""
+        from gi.repository import Vte, GLib
+        win = Gtk.Window(title="SysTerm")
+        win.set_default_size(900, 560)
+        win.set_application(self)
+        term = Vte.Terminal()
+        argv = command or [os.environ.get("SHELL") or "/bin/bash"]
+        term.spawn_async(
+            Vte.PtyFlags.DEFAULT, cwd or os.environ.get("HOME") or "/",
+            argv, None, GLib.SpawnFlags.SEARCH_PATH, None, None, -1, None, None, None)
+        term.connect("child-exited", lambda *_a: win.close())
+        win.add(term)
+        return win
+
     def _install_css(self):
-        provider = Gtk.CssProvider()
-        provider.load_from_data(_CSS)
-        screen = Gdk.Screen.get_default()
-        if screen is not None:
-            Gtk.StyleContext.add_provider_for_screen(
-                screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        try:
+            provider = Gtk.CssProvider()
+            provider.load_from_data(_CSS)
+            screen = Gdk.Screen.get_default()
+            if screen is not None:
+                Gtk.StyleContext.add_provider_for_screen(
+                    screen, provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
+        except Exception:
+            # A CSS parse error must never take the app down before any window
+            # opens — the tint is cosmetic. Log and carry on.
+            import traceback
+            traceback.print_exc()
 
 
 _NO_DISPLAY = """\
