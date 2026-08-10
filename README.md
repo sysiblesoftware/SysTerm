@@ -133,6 +133,27 @@ scrollback_lines = 20000
 toggle-broadcast = <Primary><Shift>a
 ```
 
+## Sysible Atlas — the AI companion pane
+
+A second surface that *reads your session*, powered by a **local** model (Ollama
+by default; nothing leaves the machine). Open it with **Alt+A**.
+
+- **Catches failures** — when a command exits non-zero, Atlas reads that pane's
+  output and explains it (Cause → Fix), no copy-paste. Silence with
+  `SYSIBLE_ATLAS_AUTO=0`.
+- **Ask inline** — type `ai <question>` (or `atlas <question>`) in the terminal
+  and the answer streams into the pane, keeping your prompt clean. There's also
+  an ask box and an "Analyze output" button in the pane, and a right-click
+  "Analyze in Sysible Atlas".
+- **Run its fixes** — every command Atlas suggests gets a *Run in terminal*
+  button that types it into the pane it came from.
+
+Config (shared with `sysible ai`): `SYSIBLE_AI_URL` (default
+`http://127.0.0.1:11434`), `SYSIBLE_AI_MODEL` (default `qwen2.5-coder:7b`),
+`SYSIBLE_AI_BACKEND` (`ollama` | `openai`). The auto-catch and `ai` command need
+SysTerm's shell integration (shipped on Sysible Linux via `/etc/profile.d`); the
+pane's ask box and Analyze button work anywhere.
+
 ## Roadmap
 
 - Directional focus (`Alt+Arrows`) and drag-to-resize handles (VTE gives us the

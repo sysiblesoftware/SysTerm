@@ -35,6 +35,7 @@ DEFAULT_KEYS = {
     "prev-pane": "<Primary><Shift>Left",
     "zoom-pane": "<Primary><Shift>x",           # toggle: maximise this pane
     "toggle-broadcast": "<Primary><Shift>b",    # type once, send to every pane
+    "toggle-atlas": "<Alt>a",                   # Sysible Atlas AI companion pane
     "zoom-in": "<Primary>plus",
     "zoom-out": "<Primary>minus",
     "zoom-reset": "<Primary>0",
@@ -160,6 +161,7 @@ next-pane = <Primary><Shift>Right
 prev-pane = <Primary><Shift>Left
 zoom-pane = <Primary><Shift>x
 toggle-broadcast = <Primary><Shift>b
+toggle-atlas = <Alt>a
 zoom-in = <Primary>plus
 zoom-out = <Primary>minus
 zoom-reset = <Primary>0

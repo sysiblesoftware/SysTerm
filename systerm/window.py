@@ -10,6 +10,7 @@ from gi.repository import Gtk, Gio, GLib, Gdk, Pango  # noqa: E402
 
 from . import __version__
 from .terminal import SysTermTerminal
+from . import atlas as _atlas
 
 # Shown in the window title so it's obvious at a glance which build is running
 # (a freshly-built .deb does nothing until you relaunch — the title makes a
@@ -32,15 +33,34 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._active = None          # last-focused terminal
         self._zoom_state = None      # bookkeeping for the zoom-pane toggle
 
-        self.set_default_size(960, 600)
+        self.set_default_size(1120, 640)
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
         self.notebook.connect("switch-page", lambda *_: GLib.idle_add(self._focus_current))
-        self.add(self.notebook)
+
+        # Sysible Atlas companion: a control FIFO the shells write to, a local
+        # model client, and the companion pane docked to the right of the tabs.
+        # The pane is hidden until you open it (Alt+A) or a command fails.
+        self._atlas_client = _atlas.AtlasClient()
+        self._atlas_ctl = _atlas.AtlasControl(self._on_atlas_event)
+        self._atlas_sock = self._atlas_ctl.start()
+        self._atlas = _atlas.AtlasPanel(self._atlas_client)
+        self._atlas.on_ask = self._atlas_ask
+        self._atlas.on_run = self._atlas_run
+        self._atlas.on_analyze = self._atlas_analyze_active
+        self._atlas_term = None      # pane the current answer relates to
+
+        self._atlas_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
+        self._atlas_paned.set_wide_handle(True)
+        self._atlas_paned.pack1(self.notebook, True, True)
+        self._atlas_paned.pack2(self._atlas, False, False)
+        self.add(self._atlas_paned)
+        self.connect("destroy", lambda *_: self._atlas_ctl.stop())
 
         self._install_actions(app)
         self.new_tab()
+        GLib.idle_add(self._atlas.hide)   # collapsed by default
 
     # ===== tabs ============================================================
     def new_tab(self):
@@ -97,7 +117,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
         command, cwd = self._pending_command, self._pending_cwd
         self._pending_command = self._pending_cwd = None   # first pane only
         term = SysTermTerminal(self.config, on_exit=self._on_term_exit,
-                               on_title=self._on_term_title, command=command, cwd=cwd)
+                               on_title=self._on_term_title, command=command, cwd=cwd,
+                               atlas_sock=self._atlas_sock)
         # Broadcast at the key-press layer, NOT via VTE's "commit" signal.
         # feed_child() makes a pane re-emit "commit", so a commit-based broadcast
         # feeds back on itself (one keystroke avalanches across every pane).
@@ -160,6 +181,12 @@ class SysTermWindow(Gtk.ApplicationWindow):
         submenu.append(manage_mi)
         run_item.set_submenu(submenu)
         menu.append(run_item)
+        sep()
+
+        # Sysible Atlas: analyze THIS pane's last output in the AI companion.
+        # (the right-click already set _active to this pane).
+        add("Analyze in Sysible Atlas", self._atlas_analyze_active,
+            action="toggle-atlas")
         sep()
 
         # Terminator wording: "horizontal" = top/bottom (a VERTICAL paned).
@@ -462,6 +489,84 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._broadcasting = False
         return False
 
+    # ===== Sysible Atlas ===================================================
+    def toggle_atlas(self):
+        if self._atlas.get_visible():
+            self._atlas.hide()
+            self._focus_current()
+        else:
+            self._show_atlas()
+            self._atlas.focus_ask()
+
+    def _show_atlas(self):
+        if not self._atlas.get_visible():
+            self._atlas.show()
+            alloc = self._atlas_paned.get_allocation()
+            if alloc.width > 1:
+                self._atlas_paned.set_position(max(360, alloc.width - 420))
+
+    def _term_by_id(self, pane_id):
+        for t in self.terminals:
+            if getattr(t, "atlas_id", None) == pane_id:
+                return t
+        return None
+
+    def _atlas_messages(self, term, command=None, exit_code=None, question=None):
+        ctx = []
+        if command:
+            ctx.append("Command:\n%s" % command)
+        if exit_code is not None:
+            ctx.append("Exit code: %s" % exit_code)
+        output = term.recent_text() if term is not None else ""
+        if output:
+            if len(output) > 6000:
+                output = "…(truncated)…\n" + output[-6000:]
+            ctx.append("Terminal output:\n%s" % output)
+        if question:
+            ctx.append("Question: %s" % question)
+        return [
+            {"role": "system", "content": _atlas.SYSTEM_PROMPT},
+            {"role": "user", "content": "\n\n".join(ctx) or "Explain the last output."},
+        ]
+
+    def _on_atlas_event(self, kind, pane_id, exit_code, text):
+        """Fired from the control FIFO (main loop). text is the command (error)
+        or the question (ask)."""
+        term = self._term_by_id(pane_id) or self._active_terminal()
+        self._atlas_term = term
+        self._show_atlas()
+        if kind == "error":
+            title = "Caught · exit %s" % exit_code
+            self._atlas.start_card("error", title, text,
+                                   self._atlas_messages(term, command=text,
+                                                        exit_code=exit_code))
+        else:  # ask
+            self._atlas.start_card("answer", "Answer", None,
+                                   self._atlas_messages(term, question=text))
+        return False   # in case invoked via idle_add
+
+    def _atlas_ask(self, question):
+        term = self._atlas_term or self._active_terminal()
+        self._atlas_term = term
+        self._show_atlas()
+        self._atlas.start_card("answer", "Answer", None,
+                               self._atlas_messages(term, question=question))
+
+    def _atlas_analyze_active(self):
+        term = self._active_terminal()
+        if term is None:
+            return
+        self._atlas_term = term
+        self._show_atlas()
+        self._atlas.start_card("answer", "Analysis", None,
+                               self._atlas_messages(term))
+
+    def _atlas_run(self, command):
+        term = self._atlas_term or self._active_terminal()
+        if term is not None:
+            term.run_command(command)
+            term.grab_focus()
+
     # ===== helpers =========================================================
     def _current_root(self):
         idx = self.notebook.get_current_page()
@@ -529,6 +634,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
             "prev-pane": lambda *_: self.cycle_pane(-1),
             "zoom-pane": lambda *_: self.toggle_zoom(),
             "toggle-broadcast": lambda *_: self.toggle_broadcast(),
+            "toggle-atlas": lambda *_: self.toggle_atlas(),
             "zoom-in": lambda *_: self._active_do(lambda t: t.zoom(1)),
             "zoom-out": lambda *_: self._active_do(lambda t: t.zoom(-1)),
             "zoom-reset": lambda *_: self._active_do(lambda t: t.zoom(0)),

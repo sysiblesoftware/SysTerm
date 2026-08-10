@@ -1,3 +1,14 @@
+systerm (0.2.0) unstable; urgency=medium
+
+  * Sysible Atlas: a local-model AI companion pane. Alt+A opens it; a failed
+    command is caught and analysed automatically (no copy-paste), and
+    `ai <question>` in the terminal is answered in the pane. Streams from a
+    local Ollama (or any OpenAI-compatible /v1 server) via SYSIBLE_AI_URL/MODEL;
+    answers carry Run-in-terminal buttons. Manual paths (ask box, "Analyze
+    output", right-click "Analyze in Sysible Atlas") work without shell hooks.
+
+ -- Sysible <maintainers@sysible.io>  Sun, 10 Aug 2026 00:00:00 +0000
+
 systerm (0.1.9) unstable; urgency=medium
 
   * Right-click "Run Command" menu: quick-run common commands (apt update,

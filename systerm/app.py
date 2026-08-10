@@ -18,6 +18,53 @@ _CSS = b"""
 /* A clear amber frame while broadcast is armed, so you never type to the whole
    fleet by accident. */
 .systerm-broadcast { border: 2px solid #d0a060; }
+
+/* ---- Sysible Atlas companion pane ---- */
+.atlas-panel { background: #0e131b; border-left: 1px solid #1c2430; }
+.atlas-header {
+    padding: 10px 12px; background: #0b1017; border-bottom: 1px solid #1c2430;
+}
+.atlas-dot { color: #5cc746; }
+.atlas-header label { color: #dfeee6; font-size: 12.5px; }
+.atlas-ghost, .atlas-run {
+    background: #0b1119; color: #7ed268; border: 1px solid rgba(92,199,70,.40);
+    border-radius: 7px; padding: 3px 10px; font-size: 12px; box-shadow: none;
+    text-shadow: none;
+}
+.atlas-ghost { color: #8ea1b8; border-color: #263041; }
+.atlas-ghost:hover, .atlas-run:hover { background: rgba(92,199,70,.10); }
+.atlas-card {
+    background: #0c121a; border: 1px solid #1c2430; border-radius: 10px;
+    padding: 11px 13px; border-left: 3px solid #263041;
+}
+.atlas-card-err { border-left-color: #e5484d; }
+.atlas-card-ans { border-left-color: #5cc746; }
+.atlas-card-title {
+    color: #e7eef6; font-size: 11px; font-weight: bold; letter-spacing: 1px;
+}
+.atlas-card-sub { color: #4a5568; font-size: 11px; font-family: monospace; }
+.atlas-stream, .atlas-code-text {
+    font-family: monospace; font-size: 12.5px; color: #c7d2e0;
+}
+.atlas-fail { color: #e5a0a2; }
+.atlas-prose { color: #b7c4d4; font-size: 13px; }
+.atlas-code {
+    background: #080c12; border: 1px solid #1c2430; border-radius: 7px;
+    padding: 8px 10px; margin: 4px 0;
+}
+.atlas-code-text { color: #eaf1f8; }
+.atlas-empty { color: #55627a; font-size: 12.5px; padding: 24px 16px; }
+.atlas-ask {
+    padding: 9px 12px; background: #0b1017; border-top: 1px solid #1c2430;
+}
+.atlas-ask entry {
+    background: #0c121a; color: #dbe6f2; border: 1px solid #263041;
+    border-radius: 7px; caret-color: #5cc746;
+}
+.atlas-footer {
+    padding: 7px 12px; background: #0a0e15; border-top: 1px solid #1c2430;
+    color: #6f7d94; font-family: monospace; font-size: 11px;
+}
 """
 
 
