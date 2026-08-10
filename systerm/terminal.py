@@ -166,27 +166,48 @@ class SysTermTerminal(Vte.Terminal):
     def recent_text(self, max_lines=140):
         """Return the last ~max_lines of this pane's buffer as plain text, so the
         companion can read a command's output without any copy-paste. VTE's text
-        API differs across versions, so try the reliable ones in order."""
+        API changed across versions (get_text_range/get_text were removed around
+        VTE 0.72 in favour of *_format), so try the current API first, then the
+        legacy ones — otherwise this silently returns '' on new VTE and Atlas has
+        no context to analyse."""
+        col = self.get_column_count()
         try:
-            col = self.get_column_count()
-            try:
-                _, crow = self.get_cursor_position()
-            except (TypeError, ValueError):
-                crow = self.get_row_count()
-            start = max(0, crow - max_lines)
-            res = self.get_text_range(start, 0, crow, col)
+            _, crow = self.get_cursor_position()
+        except (TypeError, ValueError):
+            crow = self.get_row_count()
+        start = max(0, crow - max_lines)
+
+        def _norm(res):
             text = res[0] if isinstance(res, (tuple, list)) else res
             if text:
                 return "\n".join(ln.rstrip() for ln in text.splitlines()).strip()
-        except Exception:
-            pass
-        # Fallback: whole-buffer getter (older/newer bindings).
-        for getter in ("get_text", "get_text_included_trailing_spaces"):
-            fn = getattr(self, getter, None)
+            return ""
+
+        # Range getters (current API first, then legacy).
+        for name, args in (
+            ("get_text_range_format", (Vte.Format.TEXT, start, 0, crow, col)),
+            ("get_text_range", (start, 0, crow, col)),
+        ):
+            fn = getattr(self, name, None)
             if fn is None:
                 continue
             try:
-                res = fn()
+                out = _norm(fn(*args))
+                if out:
+                    return out
+            except Exception:
+                continue
+        # Whole-buffer getters (current API first, then legacy), tail-trimmed.
+        for name, args in (
+            ("get_text_format", (Vte.Format.TEXT,)),
+            ("get_text", ()),
+            ("get_text_included_trailing_spaces", ()),
+        ):
+            fn = getattr(self, name, None)
+            if fn is None:
+                continue
+            try:
+                res = fn(*args)
                 text = res[0] if isinstance(res, (tuple, list)) else res
                 if text:
                     lines = [ln.rstrip() for ln in text.splitlines()]

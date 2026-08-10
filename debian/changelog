@@ -1,3 +1,16 @@
+systerm (0.2.28) unstable; urgency=medium
+
+  * Atlas: FIX the root cause of "nothing to analyze" and the earlier Analyze
+    hallucinations on modern VTE. VTE removed get_text_range/get_text (~0.72) in
+    favour of the *_format API; recent_text() therefore returned '' on VTE 0.84+
+    (Ubuntu 24.04), so Analyze had no context and either invented a canned failure
+    or hit the empty guard. Use get_text_range_format / get_text_format first, then
+    the legacy getters.
+  * Atlas: the right-click "Analyze in Sysible Atlas" now targets the exact pane
+    you clicked, not just the focused one.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 05:30:00 +0000
+
 systerm (0.2.27) unstable; urgency=medium
 
   * Theme: default terminal font is now Monospace 9 (was 10/11) — the compact size

@@ -252,7 +252,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         # the companion initialised.
         if self._atlas is not None:
             add("Open Sysible Atlas", self.open_atlas, action="toggle-atlas")
-            add("Analyze in Sysible Atlas", self._atlas_analyze_active)
+            add("Analyze in Sysible Atlas", lambda: self._atlas_analyze_active(term))
             sep()
 
         # Terminator wording: "horizontal" = top/bottom (a VERTICAL paned).
@@ -695,10 +695,10 @@ class SysTermWindow(Gtk.ApplicationWindow):
                                run_target=self._atlas_run_target(term),
                                run_pane_id=getattr(term, "atlas_id", None))
 
-    def _atlas_analyze_active(self):
+    def _atlas_analyze_active(self, term=None):
         if self._atlas is None:
             return
-        term = self._active_terminal()
+        term = term or self._active_terminal()
         if term is None:
             return
         self._atlas_term = term
