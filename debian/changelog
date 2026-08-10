@@ -1,3 +1,15 @@
+systerm (0.2.19) unstable; urgency=medium
+
+  * Atlas: better fixes from small models. Feed a FOCUSED slice of the buffer (last
+    ~24 lines for a caught failure, ~60 for manual Analyze) and label the failed
+    command as "fix THIS one only", so the model stops grabbing the wrong command
+    out of a long scrollback. Prompt now: reproduce an install/correction hint from
+    the output VERBATIM (keep sudo + the real package manager; don't shorten
+    'sudo snap install X' to 'install X'), and never invent a command/package/path
+    or reference a command the user didn't run.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 01:00:00 +0000
+
 systerm (0.2.18) unstable; urgency=medium
 
   * Atlas: clean up small-model answer artifacts. Strip leaked fence-label / filler

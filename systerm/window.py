@@ -598,14 +598,20 @@ class SysTermWindow(Gtk.ApplicationWindow):
     def _atlas_messages(self, term, command=None, exit_code=None, question=None):
         ctx = []
         if command:
-            ctx.append("Command:\n%s" % command)
+            # The specific failed command — emphasise it so the model fixes THIS
+            # one, not some other command elsewhere in the scrollback.
+            ctx.append("The command that failed (fix THIS one only):\n%s" % command)
         if exit_code is not None:
-            ctx.append("Exit code: %s" % exit_code)
-        output = term.recent_text() if term is not None else ""
+            ctx.append("Its exit code: %s" % exit_code)
+        # A focused slice of the buffer. A caught failure needs only the last few
+        # lines (the command + its own output); sending the whole scrollback makes
+        # a small model grab the wrong command. A manual analysis gets a bit more.
+        lines = 24 if command else 60
+        output = term.recent_text(max_lines=lines) if term is not None else ""
         if output:
-            if len(output) > 6000:
-                output = "…(truncated)…\n" + output[-6000:]
-            ctx.append("Terminal output:\n%s" % output)
+            if len(output) > 4000:
+                output = "…(truncated)…\n" + output[-4000:]
+            ctx.append("Recent terminal output (context only):\n%s" % output)
         if question:
             ctx.append("Question: %s" % question)
         return [
