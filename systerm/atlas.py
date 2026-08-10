@@ -29,7 +29,7 @@ import urllib.request
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, GLib, Pango  # noqa: E402
+from gi.repository import Gtk, Gdk, GLib, Pango  # noqa: E402
 
 DEFAULT_URL = (os.environ.get("SYSIBLE_AI_URL") or "http://127.0.0.1:11434").rstrip("/")
 DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or "qwen2.5-coder:7b"
@@ -205,9 +205,10 @@ _FENCE = re.compile(r"```[a-zA-Z0-9]*\n?(.*?)```", re.S)
 
 
 class AtlasCard(Gtk.Box):
-    def __init__(self, kind, title, subtitle, on_run):
+    def __init__(self, kind, title, subtitle, on_run, run_target="terminal"):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         self._on_run = on_run
+        self._run_target = run_target
         self._raw = ""
         self.get_style_context().add_class("atlas-card")
         self.get_style_context().add_class(
@@ -301,11 +302,22 @@ class AtlasCard(Gtk.Box):
         if cmds:
             joined = " && ".join(cmds) if len(cmds) > 1 else cmds[0]
             act = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
-            run = Gtk.Button(label="↵  Run in terminal")
+            run = Gtk.Button(label="↵  Run in %s" % self._run_target)
             run.get_style_context().add_class("atlas-run")
             run.connect("clicked", lambda *_: self._on_run(joined))
             act.pack_start(run, False, False, 0)
+            copy = Gtk.Button(label="Copy")
+            copy.get_style_context().add_class("atlas-ghost")
+            copy.connect("clicked", lambda *_: self._copy(joined))
+            act.pack_start(copy, False, False, 0)
             self.pack_start(act, False, False, 0)
+
+    def _copy(self, text):
+        try:
+            clip = Gtk.Clipboard.get(Gdk.SELECTION_CLIPBOARD)
+            clip.set_text(text, -1)
+        except Exception:
+            pass
 
 
 def _md_inline(s):
@@ -361,7 +373,8 @@ class AtlasPanel(Gtk.Box):
         dot.get_style_context().add_class("atlas-dot")
         head.pack_start(dot, False, False, 0)
         title = Gtk.Label(xalign=0.0)
-        title.set_markup("<b>Sysible Atlas</b>  <span alpha='55%'>· watching</span>")
+        title.set_markup(
+            "<b>Sysible Atlas</b>  <span alpha='55%'>· watching this session</span>")
         head.pack_start(title, False, False, 0)
         # Close (hide) the pane. Hiding keeps the widget alive, so every card and
         # the whole conversation history is preserved — reopening (Alt+A, the
@@ -372,16 +385,14 @@ class AtlasPanel(Gtk.Box):
         close.set_tooltip_text("Close Atlas (Alt+A) — history is kept")
         close.connect("clicked", lambda *_: self.on_close and self.on_close())
         head.pack_end(close, False, False, 0)
-        setup = Gtk.Button(label="Setup")
-        setup.get_style_context().add_class("atlas-ghost")
-        setup.set_tooltip_text("Install Ollama / download a model")
-        setup.connect("clicked", lambda *_: self.show_setup())
-        head.pack_end(setup, False, False, 0)
-        analyze = Gtk.Button(label="Analyze output")
-        analyze.get_style_context().add_class("atlas-ghost")
-        analyze.set_tooltip_text("Explain the last command's output in the focused terminal")
-        analyze.connect("clicked", lambda *_: self.on_analyze and self.on_analyze())
-        head.pack_end(analyze, False, False, 0)
+        # Model badge — "local · <model>", so it's clear at a glance the model is
+        # on-box. (Actions moved to the footer hint bar, mockup-style.)
+        badge = Gtk.Label(xalign=1.0)
+        badge.get_style_context().add_class("atlas-badge")
+        badge.set_markup(
+            "<span alpha='60%'>local · </span>%s"
+            % GLib.markup_escape_text(self._client.model))
+        head.pack_end(badge, False, False, 0)
         return head
 
     def _build_ask(self):
@@ -398,15 +409,33 @@ class AtlasPanel(Gtk.Box):
         return row
 
     def _build_footer(self):
-        foot = Gtk.Label(xalign=0.0)
+        foot = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         foot.get_style_context().add_class("atlas-footer")
+        # Left: where the model runs + the privacy promise.
+        left = Gtk.Label(xalign=0.0)
         # NB: don't use %-formatting here — the markup contains literal `alpha='75%'`,
         # and Python's % operator chokes on the `%'` ("unsupported format character").
         # That once threw during pane construction and silently disabled all of Atlas.
         model = GLib.markup_escape_text(self._client.model)
-        foot.set_markup(
+        left.set_markup(
             "<span alpha='75%'>● local · Ollama · " + model + "</span>"
             "   <span alpha='45%'>· nothing leaves this machine</span>")
+        foot.pack_start(left, False, False, 0)
+        # Right: the action hints (clickable), mockup-style. These carry the
+        # Analyze / Setup actions that used to sit in the header.
+        def hint(label, tip, cb):
+            b = Gtk.Button(label=label)
+            b.get_style_context().add_class("atlas-hint")
+            b.set_tooltip_text(tip)
+            b.connect("clicked", lambda *_: cb())
+            return b
+        foot.pack_end(hint("Setup", "Install Ollama / download a model",
+                           self.show_setup), False, False, 0)
+        foot.pack_end(hint("⌥K Ask", "Ask about this terminal",
+                           self.focus_ask), False, False, 0)
+        foot.pack_end(hint("⌥A Analyze", "Explain the focused terminal's last output",
+                           lambda: self.on_analyze and self.on_analyze()),
+                      False, False, 0)
         return foot
 
     # ----- first-run setup (install Ollama + download a model) -------------
@@ -510,11 +539,12 @@ class AtlasPanel(Gtk.Box):
             self.on_ask(q)
 
     # ----- streaming a card ------------------------------------------------
-    def start_card(self, kind, title, subtitle, messages):
+    def start_card(self, kind, title, subtitle, messages, run_target="terminal"):
         if self._setup in self._cards.get_children():
             self._cards.remove(self._setup)   # kept alive; re-openable via header
         card = AtlasCard(kind, title, subtitle,
-                         on_run=lambda cmd: self.on_run and self.on_run(cmd))
+                         on_run=lambda cmd: self.on_run and self.on_run(cmd),
+                         run_target=run_target)
         self._cards.pack_start(card, False, False, 0)
         self._scroll_end()
         def on_err(m):

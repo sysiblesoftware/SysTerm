@@ -26,6 +26,11 @@ _CSS = b"""
 }
 .atlas-dot { color: #5cc746; }
 .atlas-header label { color: #dfeee6; font-size: 12.5px; }
+/* Model badge pill on the right of the header (local + model name). */
+.atlas-badge {
+    background: #0b1119; color: #9fb0c6; border: 1px solid #1c2430;
+    border-radius: 999px; padding: 2px 10px; font-size: 11.5px; font-family: monospace;
+}
 .atlas-ghost, .atlas-run {
     background: #0b1119; color: #7ed268; border: 1px solid rgba(92,199,70,.40);
     border-radius: 7px; padding: 3px 10px; font-size: 12px; box-shadow: none;
@@ -64,9 +69,17 @@ _CSS = b"""
     border-radius: 7px; caret-color: #5cc746;
 }
 .atlas-footer {
-    padding: 7px 12px; background: #0a0e15; border-top: 1px solid #1c2430;
+    padding: 6px 12px; background: #0a0e15; border-top: 1px solid #1c2430;
     color: #6f7d94; font-family: monospace; font-size: 11px;
 }
+.atlas-footer label { color: #6f7d94; font-family: monospace; font-size: 11px; }
+/* Footer action hints (Analyze / Ask / Setup): quiet until hovered. */
+.atlas-hint {
+    background: transparent; border: none; box-shadow: none; text-shadow: none;
+    color: #7d8aa0; padding: 1px 6px; font-family: monospace; font-size: 11px;
+    min-height: 0;
+}
+.atlas-hint:hover { color: #7ed268; background: rgba(92,199,70,.08); border-radius: 5px; }
 """
 
 

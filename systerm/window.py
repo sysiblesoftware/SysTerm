@@ -587,6 +587,14 @@ class SysTermWindow(Gtk.ApplicationWindow):
                 return t
         return None
 
+    def _atlas_run_target(self, term):
+        """Label for the card's Run button: 'terminal N' naming the exact pane the
+        command will be typed into (1-based, matching left-to-right order)."""
+        try:
+            return "terminal %d" % (self.terminals.index(term) + 1)
+        except (ValueError, AttributeError):
+            return "terminal"
+
     def _atlas_messages(self, term, command=None, exit_code=None, question=None):
         ctx = []
         if command:
@@ -613,14 +621,17 @@ class SysTermWindow(Gtk.ApplicationWindow):
         term = self._term_by_id(pane_id) or self._active_terminal()
         self._atlas_term = term
         self._show_atlas()
+        rt = self._atlas_run_target(term)
         if kind == "error":
-            title = "Caught · exit %s" % exit_code
+            title = "CAUGHT · EXIT %s" % exit_code
             self._atlas.start_card("error", title, text,
                                    self._atlas_messages(term, command=text,
-                                                        exit_code=exit_code))
+                                                        exit_code=exit_code),
+                                   run_target=rt)
         else:  # ask
-            self._atlas.start_card("answer", "Answer", None,
-                                   self._atlas_messages(term, question=text))
+            self._atlas.start_card("answer", "ANSWER", "local",
+                                   self._atlas_messages(term, question=text),
+                                   run_target=rt)
         return False   # in case invoked via idle_add
 
     def _atlas_ask(self, question):
@@ -629,8 +640,9 @@ class SysTermWindow(Gtk.ApplicationWindow):
         term = self._atlas_term or self._active_terminal()
         self._atlas_term = term
         self._show_atlas()
-        self._atlas.start_card("answer", "Answer", None,
-                               self._atlas_messages(term, question=question))
+        self._atlas.start_card("answer", "ANSWER", "local",
+                               self._atlas_messages(term, question=question),
+                               run_target=self._atlas_run_target(term))
 
     def _atlas_analyze_active(self):
         if self._atlas is None:
@@ -640,8 +652,9 @@ class SysTermWindow(Gtk.ApplicationWindow):
             return
         self._atlas_term = term
         self._show_atlas()
-        self._atlas.start_card("answer", "Analysis", None,
-                               self._atlas_messages(term))
+        self._atlas.start_card("answer", "ANALYSIS", "local",
+                               self._atlas_messages(term),
+                               run_target=self._atlas_run_target(term))
 
     def _atlas_run(self, command):
         term = self._atlas_term or self._active_terminal()

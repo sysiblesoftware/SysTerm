@@ -1,3 +1,13 @@
+systerm (0.2.8) unstable; urgency=medium
+
+  * Atlas UI: bring the pane up to the design mockup. Header gains a "local · model"
+    badge; the model/privacy line and the Analyze/Ask/Setup actions move into a
+    footer hint bar. Cards use uppercase titles (CAUGHT · EXIT N / ANSWER) with the
+    failed command or "local" as the meta line. Each suggested command now shows
+    "Run in terminal N" (naming the exact pane) plus a Copy button.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 16:00:00 +0000
+
 systerm (0.2.7) unstable; urgency=medium
 
   * Atlas: add a ✕ close button to the pane header. Closing only hides the pane —
