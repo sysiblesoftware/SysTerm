@@ -157,12 +157,11 @@ fi
 say "SysTerm installed. Launch it from your app menu or run: systerm"
 cat <<'NEXT'
 
-  Sysible Atlas (the AI companion pane, Alt+A) needs a local model server:
-    • Install Ollama:  curl -fsSL https://ollama.com/install.sh | sh
-    • Pull a model:    ollama pull qwen2.5-coder:7b   (or a smaller one)
-  Then in SysTerm press Alt+A, or type:  ai <your question>
+  Sysible Atlas (the AI companion pane) opens on first launch and walks you
+  through installing Ollama and downloading a model — or open it anytime:
+  right-click → "Open Sysible Atlas", or press Alt+A. Ask in the pane's box;
+  failed commands appear there automatically.
 
-  The pane (Alt+A, ask box, Analyze, model picker) works in any shell. The
-  auto-catch of failed commands and the `ai <q>` command are bash-only; open a
-  NEW terminal (or `exec bash`) so the shell hooks load.
+  (The auto-catch of failed commands is bash-only — open a NEW terminal, or run
+  `exec bash`, so the shell hook loads. The pane itself works in any shell.)
 NEXT

@@ -225,11 +225,13 @@ class SysTermWindow(Gtk.ApplicationWindow):
         menu.append(run_item)
         sep()
 
-        # Sysible Atlas: analyze THIS pane's last output in the AI companion.
-        # (the right-click already set _active to this pane).
-        add("Analyze in Sysible Atlas", self._atlas_analyze_active,
-            action="toggle-atlas")
-        sep()
+        # Sysible Atlas: open the AI companion, or analyze THIS pane's last output
+        # in it (the right-click already set _active to this pane). Only shown when
+        # the companion initialised.
+        if self._atlas is not None:
+            add("Open Sysible Atlas", self.open_atlas, action="toggle-atlas")
+            add("Analyze in Sysible Atlas", self._atlas_analyze_active)
+            sep()
 
         # Terminator wording: "horizontal" = top/bottom (a VERTICAL paned).
         add("Split Horizontally", lambda: self.split(Gtk.Orientation.VERTICAL),
@@ -541,6 +543,13 @@ class SysTermWindow(Gtk.ApplicationWindow):
         else:
             self._show_atlas()
             self._atlas.focus_ask()
+
+    def open_atlas(self):
+        """Reveal the companion and focus the ask box (right-click / Alt+A)."""
+        if self._atlas is None:
+            return
+        self._show_atlas()
+        self._atlas.focus_ask()
 
     def _show_atlas(self):
         if self._atlas is None:

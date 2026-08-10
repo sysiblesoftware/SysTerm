@@ -156,10 +156,9 @@ by default; nothing leaves the machine). Open it with **Alt+A**.
 - **Catches failures** — when a command exits non-zero, Atlas reads that pane's
   output and explains it (Cause → Fix), no copy-paste. Silence with
   `SYSIBLE_ATLAS_AUTO=0`.
-- **Ask inline** — type `ai <question>` (or `atlas <question>`) in the terminal
-  and the answer streams into the pane, keeping your prompt clean. There's also
-  an ask box and an "Analyze output" button in the pane, and a right-click
-  "Analyze in Sysible Atlas".
+- **Ask in the pane** — open Atlas (right-click → **Open Sysible Atlas**, or
+  **Alt+A**) and type in its ask box; the answer streams in. There's also an
+  "Analyze output" button and a right-click "Analyze in Sysible Atlas".
 - **Run its fixes** — every command Atlas suggests gets a *Run in terminal*
   button that types it into the pane it came from.
 

@@ -4,19 +4,9 @@
 # exported; we write two message kinds to it so a failed command or an
 # `ai`/`atlas` question reaches the companion pane. Everything stays local.
 if [ -n "$BASH_VERSION" ] && [ -n "$PS1" ] && [ -n "$SYSIBLE_ATLAS_FIFO" ] && [ -p "$SYSIBLE_ATLAS_FIFO" ]; then
-    # Ask the companion:  ai <question>   (alias: atlas <question>)
-    atlas() {
-        if [ "$#" -eq 0 ]; then
-            printf 'usage: ai <question>   (answered in the SysTerm Atlas pane)\n' >&2
-            return 2
-        fi
-        printf 'ask\t%s\t%s\n' "$SYSIBLE_ATLAS_ID" \
-            "$(printf '%s' "$*" | base64 | tr -d '\n')" > "$SYSIBLE_ATLAS_FIFO" 2>/dev/null || true
-    }
-    ai() { atlas "$@"; }
-
     # Hand a failed command to the companion (skip ones that routinely exit
-    # non-zero). Silence with SYSIBLE_ATLAS_AUTO=0.
+    # non-zero). No typing required — you ask questions in the Atlas pane itself
+    # (right-click → Open Sysible Atlas, or Alt+A). Silence with SYSIBLE_ATLAS_AUTO=0.
     __atlas_prompt() {
         local _rc=$?
         [ "${SYSIBLE_ATLAS_AUTO:-1}" = 0 ] && return "$_rc"

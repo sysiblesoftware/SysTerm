@@ -1,3 +1,11 @@
+systerm (0.2.3) unstable; urgency=medium
+
+  * Atlas: open from right-click ("Open Sysible Atlas") or Alt+A and ask in the
+    pane's box. Removed the `ai <question>` terminal command per feedback — the
+    no-typing auto-catch of failed commands stays. README/installer/mockup updated.
+
+ -- Sysible <maintainers@sysible.io>  Sun, 10 Aug 2026 11:00:00 +0000
+
 systerm (0.2.2) unstable; urgency=medium
 
   * Sysible Atlas: first-run Setup card. On first launch the companion opens and
