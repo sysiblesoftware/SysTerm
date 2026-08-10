@@ -21,8 +21,10 @@ import json
 import os
 import re
 import shutil
+import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 
@@ -45,6 +47,11 @@ SYSTEM_PROMPT = (
     "3. **Note** — one line only if a command is risky; otherwise omit.\n"
     "No pleasantries. If there's no real error, say so briefly."
 )
+
+
+class _AtlasModelError(Exception):
+    """A model-reported error (e.g. an {"error": ...} line). Distinct from a
+    connection error so the retry logic doesn't retry it as if it were transient."""
 
 
 # --------------------------------------------------------------------------- #
@@ -96,17 +103,20 @@ class AtlasClient:
                 os.path.exists(p) for p in
                 ("/usr/local/bin/ollama", "/usr/bin/ollama", "/bin/ollama",
                  "/opt/ollama/ollama", os.path.expanduser("~/.local/bin/ollama")))
-            server, models = False, []
-            try:
-                with self._opener.open(self.url + "/api/tags", timeout=3) as r:
-                    data = json.load(r)
-                server = True
-                models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-            except Exception:
-                pass
+            # Retrying list — tolerant of a just-restarted / hydrating server.
+            models = self.list_models()
+            server = bool(models)
+            if not server:
+                # No models listed — is the server up-but-empty, or unreachable?
+                try:
+                    with self._opener.open(self.url + "/api/tags", timeout=3) as r:
+                        r.read(1)
+                    server = True
+                except Exception:
+                    server = False
             # If the server answers, ollama is unquestionably installed and running,
             # regardless of what `which`/paths said.
-            if server:
+            if server or models:
                 binary = True
             GLib.idle_add(callback, {"binary": binary, "server": server, "models": models})
         threading.Thread(target=work, daemon=True).start()
@@ -119,25 +129,53 @@ class AtlasClient:
         threading.Thread(target=self._run, args=(messages, emit, done, fail),
                          daemon=True).start()
 
+    def list_models(self):
+        """Return the downloaded model names, or [] if the server can't be listed.
+        Retries a few times: right after an Ollama restart the tag list can error
+        or come back empty while its cache hydrates. Logs the last error instead of
+        swallowing it (a silent failure once left the model stuck on a default the
+        user hadn't pulled)."""
+        last = None
+        for attempt in range(4):
+            try:
+                with self._opener.open(self.url + "/api/tags", timeout=5) as r:
+                    data = json.load(r)
+                names = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+                if names:
+                    return names
+                # Server answered but no models yet (hydrating) — wait and retry.
+            except Exception as e:
+                last = e
+            time.sleep(0.4)
+        if last is not None:
+            sys.stderr.write("Atlas: /api/tags failed at %s: %r\n" % (self.url, last))
+        return []
+
     def _resolve_model(self):
-        """Point at a currently-downloaded model right before a request. The
-        startup probe may have run before Ollama was ready (models empty → default
-        kept), so a request could target a model that isn't pulled. Re-check the
-        live tag list every time. Best-effort; leaves the model as-is on failure."""
-        try:
-            with self._opener.open(self.url + "/api/tags", timeout=5) as r:
-                data = json.load(r)
-            models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
-            if models:
-                self.pick_model(models)
-        except Exception:
-            pass
+        """Point at a currently-downloaded model right before a request, so a
+        request never targets a model that isn't pulled (which, with Ollama cloud
+        enabled, hangs or closes the connection). Returns the model list so the
+        caller can decide what to do when nothing is installed."""
+        models = self.list_models()
+        if models:
+            self.pick_model(models)
+        return models
 
     def _run(self, messages, emit, done, fail):
-        self._resolve_model()
+        # Always target a model that's actually installed. If none is (or the
+        # server can't be listed), fail fast with recovery buttons — never send a
+        # request for a model the user hasn't pulled, which with Ollama cloud
+        # enabled hangs or drops the connection.
+        models = self._resolve_model()
+        if not models:
+            return fail(
+                "no local models available at %s. Is Ollama running, and have you "
+                "downloaded a model? Use the buttons below." % self.url)
+
         payload = {"model": self.model, "messages": messages, "stream": True}
-        got = 0
-        try:
+
+        def attempt():
+            got = 0
             req = urllib.request.Request(
                 self.url + "/api/chat", data=json.dumps(payload).encode(),
                 headers={"Content-Type": "application/json"}, method="POST")
@@ -149,25 +187,32 @@ class AtlasClient:
                     try:
                         msg = json.loads(line)
                     except ValueError:
-                        # A non-JSON line (proxy/error page on the port) must not
-                        # kill the stream thread — that left an empty, buttonless
-                        # card with no error. Skip it.
+                        # A non-JSON line must not kill the stream thread — that
+                        # left an empty, buttonless card with no error. Skip it.
                         continue
                     if msg.get("error"):
-                        return fail(str(msg["error"]))
+                        raise _AtlasModelError(str(msg["error"]))
                     chunk = msg.get("message", {}).get("content", "")
                     if chunk:
                         got += len(chunk)
                         emit(chunk)
+            return got
+
+        try:
+            try:
+                got = attempt()
+            except (urllib.error.URLError, OSError, http.client.HTTPException):
+                # One transient drop (e.g. Ollama loading the model on first use,
+                # or a just-restarted server) shouldn't surface as a hard failure.
+                time.sleep(0.6)
+                got = attempt()
             if got == 0:
-                # Completed cleanly but produced nothing — usually the model isn't
-                # actually pulled, or the port isn't really Ollama. Say so instead
-                # of leaving a blank card.
                 return fail(
-                    "no output from the model at %s. Is the server up and is '%s' "
-                    "pulled? Use the buttons below, or run:  ollama pull %s"
-                    % (self.url, self.model, self.model))
+                    "no output from '%s' at %s. Try again, or re-pull it:  "
+                    "ollama pull %s" % (self.model, self.url, self.model))
             done()
+        except _AtlasModelError as e:
+            fail(str(e))
         except urllib.error.HTTPError as e:
             body = e.read().decode("utf-8", "replace")
             if "not found" in body.lower():

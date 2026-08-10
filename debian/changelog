@@ -1,3 +1,18 @@
+systerm (0.2.14) unstable; urgency=medium
+
+  * Atlas: make model resolution robust — the real reason analysis failed. The
+    single /api/tags call could error for a moment (e.g. right after an Ollama
+    restart, while its model cache hydrates) and its error was swallowed, leaving
+    the model stuck on the qwen2.5-coder:7b default the user hadn't pulled; a chat
+    to that model (with Ollama cloud enabled) then hung/closed the connection.
+    Now: list models with retries and log (not swallow) the last error; NEVER send
+    a request for a model that isn't installed — if none is, fail fast with the
+    Start-server / Download-model buttons; retry the chat once on a transient
+    connection drop. The setup probe uses the same retrying list, so the badge
+    shows the model that will actually answer.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 22:00:00 +0000
+
 systerm (0.2.13) unstable; urgency=medium
 
   * Atlas: THE actual fix for "won't analyze". The server was reachable all along;
