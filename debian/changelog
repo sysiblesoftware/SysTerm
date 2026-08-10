@@ -1,3 +1,14 @@
+systerm (0.2.22) unstable; urgency=medium
+
+  * Titlebar: client-side header with the Sysible mark on the left (matches the
+    mockup); best-effort, falls back to the WM titlebar where CSD isn't available.
+  * Atlas: don't analyze an essentially empty terminal. With no real content a
+    small model invents a canned failure (the classic "git pull -> could not
+    resolve host"); Analyze now shows a "nothing to analyze yet" note instead of
+    calling the model.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 02:30:00 +0000
+
 systerm (0.2.21) unstable; urgency=medium
 
   * Atlas: typed questions use a dedicated prompt — the ask box is general Q&A, not

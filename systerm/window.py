@@ -19,6 +19,7 @@ from .config import CONFIG_DIR
 # (a freshly-built .deb does nothing until you relaunch — the title makes a
 # stale still-open instance easy to spot).
 _TITLE = f"SysTerm {__version__}"
+APP_ID = "io.systerm.SysTerm"   # themed icon name (installed under hicolor)
 
 
 class SysTermWindow(Gtk.ApplicationWindow):
@@ -37,6 +38,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._zoom_state = None      # bookkeeping for the zoom-pane toggle
 
         self.set_default_size(1120, 640)
+        self._headerbar = None
+        self._install_headerbar()
         self.notebook = Gtk.Notebook()
         self.notebook.set_scrollable(True)
         self.notebook.set_show_border(False)
@@ -513,10 +516,30 @@ class SysTermWindow(Gtk.ApplicationWindow):
         tree.show_all()
         GLib.idle_add(term.grab_focus)
 
+    def _install_headerbar(self):
+        """A client-side titlebar carrying the Sysible mark on the left (matches
+        the mockup). Best-effort: on a desktop that can't do CSD we silently keep
+        the WM titlebar."""
+        try:
+            bar = Gtk.HeaderBar()
+            bar.set_show_close_button(True)
+            logo = Gtk.Image.new_from_icon_name(APP_ID, Gtk.IconSize.LARGE_TOOLBAR)
+            logo.set_pixel_size(20)
+            logo.set_margin_start(2)
+            bar.pack_start(logo)
+            bar.set_title("SysTerm")
+            bar.set_subtitle("sysible")
+            self._headerbar = bar
+            self.set_titlebar(bar)
+        except Exception:
+            self._headerbar = None
+
     # ===== broadcast (type once, send to every pane) =======================
     def toggle_broadcast(self):
         self.broadcast_active = not self.broadcast_active
         self.set_title(f"{_TITLE} — BROADCAST" if self.broadcast_active else _TITLE)
+        if self._headerbar is not None:
+            self._headerbar.set_subtitle("BROADCAST" if self.broadcast_active else "sysible")
         ctx = self.get_style_context()
         (ctx.add_class if self.broadcast_active else ctx.remove_class)("systerm-broadcast")
 
@@ -672,6 +695,16 @@ class SysTermWindow(Gtk.ApplicationWindow):
             return
         self._atlas_term = term
         self._show_atlas()
+        # Don't ask the model to analyze an essentially empty terminal — with no
+        # real content a small model invents a canned failure (the classic
+        # "git pull -> could not resolve host"). Require some actual output.
+        out = term.recent_text(max_lines=60)
+        meaningful = [ln for ln in out.splitlines() if ln.strip()]
+        if len(meaningful) < 2:
+            self._atlas.note_card(
+                "Nothing to analyze yet — run a command in this terminal first, "
+                "then hit Analyze (or a failed command appears here automatically).")
+            return
         self._atlas.start_card("answer", "ANALYSIS", "local",
                                self._atlas_messages(term),
                                run_target=self._atlas_run_target(term),

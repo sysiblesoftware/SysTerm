@@ -834,6 +834,18 @@ class AtlasPanel(Gtk.Box):
         )
         return card
 
+    def note_card(self, text):
+        """A plain, non-streamed note (e.g. 'nothing to analyze') — never calls the
+        model, so it can't hallucinate."""
+        if self._setup in self._cards.get_children():
+            self._cards.remove(self._setup)
+        card = AtlasCard("answer", "ATLAS", None, on_run=lambda *_: None)
+        card._raw = text
+        card.finish()
+        self._cards.pack_start(card, False, False, 0)
+        self._scroll_end()
+        return card
+
     def _scroll_end(self):
         def go():
             adj = self._scroller.get_vadjustment()
