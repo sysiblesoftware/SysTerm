@@ -1,3 +1,13 @@
+systerm (0.2.9) unstable; urgency=medium
+
+  * Icon: redesign the app/dock icon as a `>_` terminal prompt (chevron +
+    underscore cursor) in Sysible green inside the hexagon screen. The old
+    chevron-plus-hollow-box read as a fish; the new mark is unmistakably a
+    command line and stays legible down to 16px. Regenerated all hicolor PNG
+    sizes + the SVG.
+
+ -- Sysible <maintainers@sysible.io>  Mon, 10 Aug 2026 17:00:00 +0000
+
 systerm (0.2.8) unstable; urgency=medium
 
   * Atlas UI: bring the pane up to the design mockup. Header gains a "local · model"
