@@ -3,6 +3,8 @@ holding terminal panes (Terminator-style tiling). This module owns the pane tree
 and implements split / close / focus-cycle / zoom / broadcast; the terminals
 themselves (terminal.py) only run a shell and report title/exit."""
 
+import os
+
 import gi
 
 gi.require_version("Gtk", "3.0")
@@ -11,6 +13,7 @@ from gi.repository import Gtk, Gio, GLib, Gdk, Pango  # noqa: E402
 from . import __version__
 from .terminal import SysTermTerminal
 from . import atlas as _atlas
+from .config import CONFIG_DIR
 
 # Shown in the window title so it's obvious at a glance which build is running
 # (a freshly-built .deb does nothing until you relaunch — the title makes a
@@ -80,7 +83,26 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._install_actions(app)
         self.new_tab()
         if self._atlas is not None:
-            GLib.idle_add(self._atlas.hide)   # collapsed by default
+            # Reveal the companion (with its Setup card) the FIRST time SysTerm is
+            # ever launched, so new users are walked through installing Ollama and
+            # downloading a model; collapsed by default thereafter.
+            if self._first_run():
+                GLib.idle_add(self._show_atlas)
+            else:
+                GLib.idle_add(self._atlas.hide)
+
+    def _first_run(self):
+        """True once — records a flag so the Atlas welcome shows only on the very
+        first launch."""
+        flag = os.path.join(CONFIG_DIR, ".atlas-welcomed")
+        if os.path.exists(flag):
+            return False
+        try:
+            os.makedirs(CONFIG_DIR, exist_ok=True)
+            open(flag, "w").close()
+        except OSError:
+            pass
+        return True
 
     # ===== tabs ============================================================
     def new_tab(self):

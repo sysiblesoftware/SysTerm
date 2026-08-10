@@ -20,6 +20,7 @@ import http.client
 import json
 import os
 import re
+import shutil
 import tempfile
 import threading
 import urllib.error
@@ -53,6 +54,24 @@ class AtlasClient:
     def __init__(self, url=DEFAULT_URL, model=DEFAULT_MODEL):
         self.url = url
         self.model = model
+
+    def probe(self, callback):
+        """Report setup state off the main thread: is the ollama binary present,
+        is the server answering, and which models are downloaded. `callback(dict)`
+        fires on the GTK main loop with keys: binary(bool), server(bool),
+        models(list)."""
+        def work():
+            binary = shutil.which("ollama") is not None
+            server, models = False, []
+            try:
+                with urllib.request.urlopen(self.url + "/api/tags", timeout=3) as r:
+                    data = json.load(r)
+                server = True
+                models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+            except Exception:
+                pass
+            GLib.idle_add(callback, {"binary": binary, "server": server, "models": models})
+        threading.Thread(target=work, daemon=True).start()
 
     def stream(self, messages, on_chunk, on_done, on_error):
         """Stream a chat completion. Callbacks fire on the GTK main thread."""
@@ -322,13 +341,12 @@ class AtlasPanel(Gtk.Box):
         self._scroller = sw
         self.pack_start(sw, True, True, 0)
 
-        self._empty = Gtk.Label(
-            label="Atlas is watching this session.\n\nA failed command lands here "
-                  "automatically — or ask below.\nType  ai <question>  in the "
-                  "terminal, or use the box.",
-            justify=Gtk.Justification.CENTER, wrap=True)
-        self._empty.get_style_context().add_class("atlas-empty")
-        self._cards.pack_start(self._empty, False, False, 8)
+        # First-run / no-model state shows a Setup card (install Ollama, download
+        # a model) instead of a bare hint. Built once; shown when there are no
+        # answer cards and re-openable from the header "Setup" button.
+        self._setup = self._build_setup()
+        self._cards.pack_start(self._setup, False, False, 4)
+        self.refresh_setup()
 
         self.pack_start(self._build_ask(), False, False, 0)
         self.pack_start(self._build_footer(), False, False, 0)
@@ -344,6 +362,11 @@ class AtlasPanel(Gtk.Box):
         title = Gtk.Label(xalign=0.0)
         title.set_markup("<b>Sysible Atlas</b>  <span alpha='55%'>· watching</span>")
         head.pack_start(title, False, False, 0)
+        setup = Gtk.Button(label="Setup")
+        setup.get_style_context().add_class("atlas-ghost")
+        setup.set_tooltip_text("Install Ollama / download a model")
+        setup.connect("clicked", lambda *_: self.show_setup())
+        head.pack_end(setup, False, False, 0)
         analyze = Gtk.Button(label="Analyze output")
         analyze.get_style_context().add_class("atlas-ghost")
         analyze.set_tooltip_text("Explain the last command's output in the focused terminal")
@@ -373,6 +396,97 @@ class AtlasPanel(Gtk.Box):
             % GLib.markup_escape_text(self._client.model))
         return foot
 
+    # ----- first-run setup (install Ollama + download a model) -------------
+    PULLS = [
+        ("qwen2.5-coder:7b", "code · ~4.7 GB · best default"),
+        ("llama3.2:3b", "general · ~2 GB · light"),
+        ("qwen2.5-coder:1.5b", "code · ~1 GB · tiny/low-RAM"),
+    ]
+
+    def _build_setup(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        box.get_style_context().add_class("atlas-card")
+        title = Gtk.Label(xalign=0.0)
+        title.set_markup("<b>Set up Sysible Atlas</b>")
+        title.get_style_context().add_class("atlas-card-title")
+        box.pack_start(title, False, False, 0)
+        intro = Gtk.Label(
+            xalign=0.0, wrap=True,
+            label="Atlas runs on a LOCAL model — set one up once. Buttons run in "
+                  "your terminal so you see progress; then hit Re-check.")
+        intro.get_style_context().add_class("atlas-prose")
+        box.pack_start(intro, False, False, 0)
+        self._setup_status = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=7)
+        box.pack_start(self._setup_status, False, False, 0)
+        recheck = Gtk.Button(label="↻  Re-check")
+        recheck.get_style_context().add_class("atlas-ghost")
+        recheck.set_halign(Gtk.Align.START)
+        recheck.connect("clicked", lambda *_: self.refresh_setup())
+        box.pack_start(recheck, False, False, 0)
+        return box
+
+    def _setup_row(self, markup):
+        lab = Gtk.Label(xalign=0.0, wrap=True)
+        lab.get_style_context().add_class("atlas-prose")
+        lab.set_markup(markup)
+        return lab
+
+    def _setup_button(self, label, cmd):
+        b = Gtk.Button(label=label)
+        b.get_style_context().add_class("atlas-run")
+        b.set_halign(Gtk.Align.START)
+        b.connect("clicked", lambda _w, c=cmd: self.on_run and self.on_run(c))
+        return b
+
+    def refresh_setup(self):
+        for c in self._setup_status.get_children():
+            self._setup_status.remove(c)
+        self._setup_status.pack_start(self._setup_row("<span alpha='60%'>Checking…</span>"),
+                                      False, False, 0)
+        self._setup_status.show_all()
+        self._client.probe(self._render_setup)
+
+    def _render_setup(self, state):
+        for c in self._setup_status.get_children():
+            self._setup_status.remove(c)
+        s = self._setup_status
+
+        if state["binary"]:
+            s.pack_start(self._setup_row("✓  <b>Ollama</b> installed"), False, False, 0)
+        else:
+            s.pack_start(self._setup_row("✗  <b>Ollama</b> not installed"), False, False, 0)
+            s.pack_start(self._setup_button("Install Ollama",
+                         "curl -fsSL https://ollama.com/install.sh | sh"), False, False, 0)
+
+        if state["server"]:
+            s.pack_start(self._setup_row("✓  model server running"), False, False, 0)
+        elif state["binary"]:
+            s.pack_start(self._setup_row("✗  model server not running"), False, False, 0)
+            s.pack_start(self._setup_button("Start Ollama",
+                         "sudo systemctl start ollama || ollama serve &"), False, False, 0)
+
+        if state["models"]:
+            names = ", ".join(GLib.markup_escape_text(m) for m in state["models"])
+            s.pack_start(self._setup_row("✓  models: <tt>%s</tt>" % names), False, False, 0)
+            s.pack_start(self._setup_row(
+                "<span alpha='70%'>Ready. Press <b>Alt+A</b> anytime, or ask below.</span>"),
+                False, False, 0)
+        else:
+            s.pack_start(self._setup_row(
+                "<span alpha='70%'>Download a model:</span>"), False, False, 0)
+            for name, desc in self.PULLS:
+                s.pack_start(self._setup_button("▾  %s   (%s)" % (name, desc),
+                             "ollama pull %s" % name), False, False, 0)
+        s.show_all()
+        return False
+
+    def show_setup(self):
+        if self._setup not in self._cards.get_children():
+            self._cards.pack_start(self._setup, False, False, 4)
+            self._cards.reorder_child(self._setup, 0)
+        self._setup.show_all()
+        self.refresh_setup()
+
     def focus_ask(self):
         self._entry.grab_focus()
 
@@ -384,9 +498,8 @@ class AtlasPanel(Gtk.Box):
 
     # ----- streaming a card ------------------------------------------------
     def start_card(self, kind, title, subtitle, messages):
-        if self._empty is not None:
-            self._cards.remove(self._empty)
-            self._empty = None
+        if self._setup in self._cards.get_children():
+            self._cards.remove(self._setup)   # kept alive; re-openable via header
         card = AtlasCard(kind, title, subtitle,
                          on_run=lambda cmd: self.on_run and self.on_run(cmd))
         self._cards.pack_start(card, False, False, 0)

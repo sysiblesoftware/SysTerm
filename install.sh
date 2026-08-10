@@ -38,7 +38,7 @@ if [ "$MODE" = user ]; then
     ICONS="$PREFIX/share/icons/hicolor"
     SUDO=""
 else
-    [ "$(id -u)" = 0 ] || { command -v sudo >/dev/null 2>&1 && exec sudo -E sh "$0" "$@"; die "run as root or with --user"; }
+    [ "$(id -u)" = 0 ] || { command -v sudo >/dev/null 2>&1 && exec sudo sh "$0" "$@"; die "run as root or with --user"; }
     PREFIX="/usr/local"
     LIBDIR="/usr/local/lib/systerm"
     BINDIR="/usr/local/bin"
