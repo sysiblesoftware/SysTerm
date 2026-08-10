@@ -93,6 +93,19 @@ SYSTEM_PROMPT = (
     "```\nsudo snap install kubectl\n```"
 )
 
+# A separate prompt for direct questions typed in the ask box — these are NOT
+# error diagnoses, so no Cause/Fix shape and never a "No error" prefix.
+QUESTION_PROMPT = (
+    "You are Sysible Atlas, a concise Linux/DevOps assistant inside the SysTerm "
+    "terminal on Sysible Linux (Debian/Ubuntu; apt). Answer the user's question "
+    "directly and practically — a few lines. Put any command(s) in a ```fenced``` "
+    "block, ready to run and correct for Debian/Ubuntu. Use the terminal context "
+    "only if relevant to the question. If the request is ambiguous, state your "
+    "assumption in one short line, then answer. Never invent package names, flags, "
+    "hosts, or output. Do NOT use a Cause/Fix layout and never begin with "
+    "'No error' — those are only for diagnosing a failed command."
+)
+
 
 class _AtlasModelError(Exception):
     """A model-reported error (e.g. an {"error": ...} line). Distinct from a
@@ -795,11 +808,15 @@ class AtlasPanel(Gtk.Box):
             self.on_ask(q)
 
     # ----- streaming a card ------------------------------------------------
-    def start_card(self, kind, title, subtitle, messages, run_target="terminal"):
+    def start_card(self, kind, title, subtitle, messages, run_target="terminal",
+                   run_pane_id=None):
         if self._setup in self._cards.get_children():
             self._cards.remove(self._setup)   # kept alive; re-openable via header
+        # Bind this card's Run button to the SPECIFIC pane it came from (run_pane_id),
+        # so with several terminals each card types into its own pane, not a global
+        # "active" one.
         card = AtlasCard(kind, title, subtitle,
-                         on_run=lambda cmd: self.on_run and self.on_run(cmd),
+                         on_run=lambda cmd: self.on_run and self.on_run(cmd, run_pane_id),
                          run_target=run_target)
         self._cards.pack_start(card, False, False, 0)
         self._scroll_end()

@@ -1,3 +1,19 @@
+systerm (0.2.21) unstable; urgency=medium
+
+  * Atlas: typed questions use a dedicated prompt — the ask box is general Q&A, not
+    error diagnosis, so answers no longer wear a "No error"/Cause-Fix layout meant
+    for caught failures.
+  * Atlas: reliable command capture. The shell integration now records the command
+    AS IT RUNS (a DEBUG-trap preexec that only captures top-level commands) instead
+    of parsing `history` afterwards, so a git-in-your-prompt helper or a
+    PROMPT_COMMAND function is never mistaken for the command you typed.
+  * Atlas: closing the pane (✕ / Alt+A) returns the FULL width to the terminal
+    (some GTK versions left the old divider position as a blank gap).
+  * Atlas: with multiple terminals, each card's "Run in terminal N" now types into
+    the exact pane the card came from, not a single global "active" pane.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 02:00:00 +0000
+
 systerm (0.2.20) unstable; urgency=medium
 
   * Atlas: picking a model in the selector is now STICKY — the auto-resolver no

@@ -551,8 +551,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         if self._atlas is None:
             return
         if self._atlas.get_visible():
-            self._atlas.hide()
-            self._focus_current()
+            self._hide_atlas()
         else:
             self._show_atlas()
             self._atlas.focus_ask()
@@ -565,11 +564,17 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._atlas.focus_ask()
 
     def _hide_atlas(self):
-        """Hide the companion (the pane's ✕ button). hide() keeps the widget and
-        all its cards, so the conversation history is intact when it reopens."""
+        """Hide the companion (the pane's ✕ button, or Alt+A). hide() keeps the
+        widget and all its cards, so history is intact when it reopens; the
+        terminal reclaims the FULL width (some GTK versions otherwise leave the old
+        divider position as a blank gap)."""
         if self._atlas is None:
             return
         self._atlas.hide()
+        if self._atlas_paned is not None:
+            w = self._atlas_paned.get_allocation().width
+            if w > 1:
+                self._atlas_paned.set_position(w)
         self._focus_current()
 
     def _show_atlas(self):
@@ -597,6 +602,10 @@ class SysTermWindow(Gtk.ApplicationWindow):
 
     def _atlas_messages(self, term, command=None, exit_code=None, question=None):
         ctx = []
+        # A typed question is general Q&A, not error diagnosis — lead with it and
+        # use the question prompt (no Cause/Fix, no "No error" prefix).
+        if question:
+            ctx.append("Question: %s" % question)
         if command:
             # The specific failed command — emphasise it so the model fixes THIS
             # one, not some other command elsewhere in the scrollback.
@@ -612,10 +621,9 @@ class SysTermWindow(Gtk.ApplicationWindow):
             if len(output) > 4000:
                 output = "…(truncated)…\n" + output[-4000:]
             ctx.append("Recent terminal output (context only):\n%s" % output)
-        if question:
-            ctx.append("Question: %s" % question)
+        system = _atlas.QUESTION_PROMPT if question else _atlas.SYSTEM_PROMPT
         return [
-            {"role": "system", "content": _atlas.SYSTEM_PROMPT},
+            {"role": "system", "content": system},
             {"role": "user", "content": "\n\n".join(ctx) or "Explain the last output."},
         ]
 
@@ -632,16 +640,17 @@ class SysTermWindow(Gtk.ApplicationWindow):
         term = self._term_by_id(pane_id) or self._active_terminal()
         self._atlas_term = term
         rt = self._atlas_run_target(term)
+        pid = getattr(term, "atlas_id", None)
         if kind == "error":
             title = "CAUGHT · EXIT %s" % exit_code
             self._atlas.start_card("error", title, text,
                                    self._atlas_messages(term, command=text,
                                                         exit_code=exit_code),
-                                   run_target=rt)
+                                   run_target=rt, run_pane_id=pid)
         else:  # ask
             self._atlas.start_card("answer", "ANSWER", "local",
                                    self._atlas_messages(term, question=text),
-                                   run_target=rt)
+                                   run_target=rt, run_pane_id=pid)
         return False   # in case invoked via idle_add
 
     def _atlas_ask(self, question):
@@ -652,7 +661,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._show_atlas()
         self._atlas.start_card("answer", "ANSWER", "local",
                                self._atlas_messages(term, question=question),
-                               run_target=self._atlas_run_target(term))
+                               run_target=self._atlas_run_target(term),
+                               run_pane_id=getattr(term, "atlas_id", None))
 
     def _atlas_analyze_active(self):
         if self._atlas is None:
@@ -664,12 +674,17 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._show_atlas()
         self._atlas.start_card("answer", "ANALYSIS", "local",
                                self._atlas_messages(term),
-                               run_target=self._atlas_run_target(term))
+                               run_target=self._atlas_run_target(term),
+                               run_pane_id=getattr(term, "atlas_id", None))
 
-    def _atlas_run(self, command):
-        term = self._atlas_term or self._active_terminal()
+    def _atlas_run(self, command, pane_id=None):
+        # Prefer the exact pane this card came from; fall back to the last active
+        # one (setup/recovery buttons pass no pane id).
+        term = self._term_by_id(pane_id) if pane_id else None
+        term = term or self._atlas_term or self._active_terminal()
         if term is not None:
             term.run_command(command)
+            self._atlas_term = term
             term.grab_focus()
 
     # ===== helpers =========================================================
