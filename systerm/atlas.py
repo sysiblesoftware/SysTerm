@@ -34,7 +34,7 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import Gtk, Gdk, GLib, Pango  # noqa: E402
 
 DEFAULT_URL = (os.environ.get("SYSIBLE_AI_URL") or "http://127.0.0.1:11434").rstrip("/")
-DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or "qwen2.5-coder:7b"
+DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or "qwen2.5-coder:1.5b"
 
 SYSTEM_PROMPT = (
     "You are Sysible Atlas, a terse Linux troubleshooting companion inside the "
@@ -508,17 +508,45 @@ class AtlasPanel(Gtk.Box):
         close.get_style_context().add_class("atlas-close")
         close.set_tooltip_text("Close Atlas (Alt+A) — history is kept")
         close.connect("clicked", lambda *_: self.on_close and self.on_close())
-        head.pack_end(close, False, False, 0)
-        # Model badge — "local · <model>", so it's clear at a glance the model is
-        # on-box. (Actions moved to the footer hint bar, mockup-style.)
-        badge = Gtk.Label(xalign=1.0)
-        badge.get_style_context().add_class("atlas-badge")
-        # Concatenate, don't %-format: the markup has a literal `alpha='60%'` and
-        # the % operator would choke on the `%'` (the footer bug all over again).
-        self._badge = badge
-        self._refresh_badge()
-        head.pack_end(badge, False, False, 0)
+        # Model selector — populated from the server's installed models, so you
+        # SEE what's available and pick it, rather than Atlas guessing a default
+        # that may not be pulled. Shows "detecting…" until the first probe returns.
+        picker = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        picker.get_style_context().add_class("atlas-badge")
+        loc = Gtk.Label()
+        loc.set_markup("<span alpha='60%'>local ·</span>")
+        picker.pack_start(loc, False, False, 0)
+        self._model_combo = Gtk.ComboBoxText()
+        self._model_combo.get_style_context().add_class("atlas-model")
+        self._model_combo.set_tooltip_text("Installed models on this machine — pick one")
+        self._model_combo_handler = self._model_combo.connect(
+            "changed", self._on_model_changed)
+        picker.pack_start(self._model_combo, False, False, 0)
+        self._refresh_model_combo([])   # initial "detecting…"
+        head.pack_end(picker, False, False, 0)
         return head
+
+    def _refresh_model_combo(self, models):
+        combo = self._model_combo
+        combo.handler_block(self._model_combo_handler)
+        combo.remove_all()
+        if models:
+            for m in models:
+                combo.append_text(m)
+            active = self._client.model if self._client.model in models else models[0]
+            combo.set_active(models.index(active))
+            combo.set_sensitive(True)
+        else:
+            combo.append_text("detecting…")
+            combo.set_active(0)
+            combo.set_sensitive(False)
+        combo.handler_unblock(self._model_combo_handler)
+
+    def _on_model_changed(self, combo):
+        m = combo.get_active_text()
+        if m and "…" not in m:
+            self._client.model = m
+            self._refresh_footer()
 
     def _build_ask(self):
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -551,6 +579,8 @@ class AtlasPanel(Gtk.Box):
             return b
         foot.pack_end(hint("Setup", "Install Ollama / download a model",
                            self.show_setup), False, False, 0)
+        foot.pack_end(hint("Clear", "Remove all cards (history)",
+                           self.clear_cards), False, False, 0)
         foot.pack_end(hint("⌥K Ask", "Ask about this terminal",
                            self.focus_ask), False, False, 0)
         foot.pack_end(hint("⌥A Analyze", "Explain the focused terminal's last output",
@@ -558,22 +588,32 @@ class AtlasPanel(Gtk.Box):
                       False, False, 0)
         return foot
 
+    def clear_cards(self):
+        """Remove every answer/error card (keeps the Setup card). Old cards are
+        history and can look like current failures; this wipes them."""
+        for c in list(self._cards.get_children()):
+            if c is not self._setup:
+                self._cards.remove(c)
+        if self._setup not in self._cards.get_children():
+            self._cards.pack_start(self._setup, False, False, 4)
+        self._setup.show_all()
+        self.refresh_setup()
+
     # These build markup by CONCATENATION on purpose — the strings hold literal
     # `alpha='NN%'`, and a %-format operator would choke on the `%'` (the bug that
     # twice disabled all of Atlas). Don't reintroduce %-formatting here.
-    def _refresh_badge(self):
-        self._badge.set_markup(
-            "<span alpha='60%'>local · </span>"
-            + GLib.markup_escape_text(self._client.model))
-
     def _refresh_footer(self):
+        model = self._client.model if self._client.model else "no model"
         self._footer_left.set_markup(
             "<span alpha='75%'>● local · Ollama · "
-            + GLib.markup_escape_text(self._client.model) + "</span>"
+            + GLib.markup_escape_text(model) + "</span>"
             "   <span alpha='45%'>· nothing leaves this machine</span>")
 
-    def _refresh_model_labels(self):
-        self._refresh_badge()
+    def _refresh_model_labels(self, models=None):
+        # Populate the header selector from what's actually installed, then sync
+        # the footer to the active model.
+        if models is not None:
+            self._refresh_model_combo(models)
         self._refresh_footer()
 
     # ----- first-run setup (install Ollama + download a model) -------------
@@ -627,12 +667,12 @@ class AtlasPanel(Gtk.Box):
         self._client.probe(self._render_setup)
 
     def _render_setup(self, state):
-        # Point the client at a model that's actually downloaded, so Ask/Analyze
-        # work even if the user pulled something other than the default. Then
-        # refresh the badge/footer to show the model that will actually answer.
+        # Drive the header selector from what's actually installed (so you pick
+        # from real models, not a guessed default), and point the client at one
+        # that exists so Ask/Analyze work.
         if state["models"]:
             self._client.pick_model(state["models"])
-            self._refresh_model_labels()
+        self._refresh_model_labels(state["models"])
         for c in self._setup_status.get_children():
             self._setup_status.remove(c)
         s = self._setup_status

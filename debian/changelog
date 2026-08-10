@@ -1,3 +1,19 @@
+systerm (0.2.16) unstable; urgency=medium
+
+  * Atlas: the header badge is now a MODEL SELECTOR populated from the server's
+    installed models — you see and choose what's actually available instead of a
+    guessed default. Shows "detecting…" until the first probe returns.
+  * Atlas: add a footer "Clear" button to wipe old cards. Cards are history and an
+    old error card can look like a current failure; Clear removes them.
+  * Atlas: default model preference is now qwen2.5-coder:1.5b (fast, ~1 GB) rather
+    than 7b, so modest/CPU-only machines get a responsive model by default; the
+    selector still lets you switch to any installed model.
+  * Theme: the ANSI green in the palette now matches the Atlas accent green
+    (#5cc746 / bright #6ddb73), so the shell prompt's user@host is the same green
+    as the pane.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 10 Aug 2026 23:30:00 +0000
+
 systerm (0.2.15) unstable; urgency=medium
 
   * Theme: unify the terminal and Atlas backgrounds on one dark navy (#0d1320) so

@@ -28,11 +28,19 @@ _CSS = b"""
 }
 .atlas-dot { color: #5cc746; }
 .atlas-header label { color: #dfeee6; font-size: 12.5px; }
-/* Model badge pill on the right of the header (local + model name). */
+/* Model selector pill on the right of the header (local + installed models). */
 .atlas-badge {
     background: #0b1119; color: #9fb0c6; border: 1px solid #1c2430;
-    border-radius: 999px; padding: 2px 10px; font-size: 11.5px; font-family: monospace;
+    border-radius: 999px; padding: 1px 6px 1px 10px; font-size: 11.5px; font-family: monospace;
 }
+.atlas-badge label { color: #9fb0c6; font-size: 11.5px; font-family: monospace; }
+.atlas-model, .atlas-model button {
+    background: transparent; color: #cfe6c4; border: none; box-shadow: none;
+    text-shadow: none; font-family: monospace; font-size: 11.5px; min-height: 0;
+    padding: 0 2px;
+}
+.atlas-model button:hover { background: rgba(92,199,70,.12); border-radius: 5px; }
+.atlas-model cellview { color: #cfe6c4; }
 .atlas-ghost, .atlas-run {
     background: #0b1119; color: #7ed268; border: 1px solid rgba(92,199,70,.40);
     border-radius: 7px; padding: 3px 10px; font-size: 12px; box-shadow: none;

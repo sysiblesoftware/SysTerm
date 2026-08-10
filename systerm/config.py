@@ -10,13 +10,14 @@ CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "systerm")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.ini")
 
-# A 16-colour palette (normal 0-7 then bright 8-15). Green and blue are tuned to
-# the Sysible logo (green #43a047, royal blue #3560d4) so shell prompts that use
-# ANSI green/blue — e.g. the default user@host:path prompt — match the brand.
-# Override under [profile] palette.
+# A 16-colour palette (normal 0-7 then bright 8-15). Green and blue match the
+# Sysible brand / Atlas accent — green #5cc746 (bright #6ddb73), royal blue
+# #3560d4 — so shell prompts that use ANSI green/blue (e.g. the default
+# user@host:path prompt) are the same green as the Atlas pane. Override under
+# [profile] palette.
 DEFAULT_PALETTE = [
-    "#1a1a1a", "#c25b56", "#43a047", "#d0a060", "#3560d4", "#a07daf", "#5fa7a7", "#c0c0c0",
-    "#4d4d4d", "#e07b76", "#43a047", "#f0c080", "#5580ee", "#c09dcf", "#7fc7c7", "#f0f0f0",
+    "#1a1a1a", "#c25b56", "#5cc746", "#d0a060", "#3560d4", "#a07daf", "#5fa7a7", "#c0c0c0",
+    "#4d4d4d", "#e07b76", "#6ddb73", "#f0c080", "#5580ee", "#c09dcf", "#7fc7c7", "#f0f0f0",
 ]
 
 # action -> default accelerator (GTK accel syntax; <Primary> is Ctrl).
