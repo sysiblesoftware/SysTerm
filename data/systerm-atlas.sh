@@ -26,6 +26,14 @@ if [ -n "$BASH_VERSION" ] && [ -n "$PS1" ] && [ -n "$SYSIBLE_ATLAS_FIFO" ] && [ 
     # routinely exit non-zero). Silence with SYSIBLE_ATLAS_AUTO=0.
     __atlas_prompt() {
         local _rc=$?
+        # Skip the FIRST prompt of each shell: it fires right after bashrc/profile
+        # sourcing, whose leftover $? and captured command would surface as a
+        # phantom "zombie" catch before you've run anything.
+        if [ -z "$__atlas_ready" ]; then
+            __atlas_ready=1
+            __atlas_cmd=""
+            return "$_rc"
+        fi
         if [ "${SYSIBLE_ATLAS_AUTO:-1}" != 0 ] && [ "$_rc" -ne 0 ] \
            && [ "$_rc" -ne 130 ] && [ -n "$__atlas_cmd" ]; then
             local _w=${__atlas_cmd%% *}

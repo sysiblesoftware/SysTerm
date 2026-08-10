@@ -1,3 +1,13 @@
+systerm (0.2.26) unstable; urgency=medium
+
+  * Atlas: no more "zombie" catch on first launch. The first PROMPT_COMMAND of each
+    shell fires right after bashrc/profile sourcing, whose leftover exit status +
+    captured command would surface as a phantom CAUGHT card before you ran
+    anything. Skip the auto-catch on that first prompt; your first real command is
+    still caught normally.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 04:30:00 +0000
+
 systerm (0.2.25) unstable; urgency=medium
 
   * Atlas: question prompt now insists on tool-valid syntax (no mixing a shell
