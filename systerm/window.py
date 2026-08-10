@@ -53,22 +53,34 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self._atlas_sock = None
         self._atlas_paned = None
         self._atlas_term = None
+        # The PANE (ask box, analyze, right-click "Open Sysible Atlas") is the
+        # core companion and must survive on its own. The control FIFO — which
+        # lets the shell auto-report failed commands — is a SEPARATE, optional
+        # feature: if it can't be created (sandboxed /tmp, no mkfifo), we still
+        # want the pane and its menu entry, just without hands-free auto-catch.
         try:
             self._atlas_client = _atlas.AtlasClient()
-            self._atlas_ctl = _atlas.AtlasControl(self._on_atlas_event)
-            self._atlas_sock = self._atlas_ctl.start()
             self._atlas = _atlas.AtlasPanel(self._atlas_client)
             self._atlas.on_ask = self._atlas_ask
             self._atlas.on_run = self._atlas_run
             self._atlas.on_analyze = self._atlas_analyze_active
         except Exception as e:
             self._atlas = None
-            try:
-                if self._atlas_ctl is not None:
-                    self._atlas_ctl.stop()
-            except Exception:
-                pass
             print("SysTerm: Atlas companion disabled (%s)" % e)
+
+        if self._atlas is not None:
+            try:
+                self._atlas_ctl = _atlas.AtlasControl(self._on_atlas_event)
+                self._atlas_sock = self._atlas_ctl.start()
+            except Exception as e:
+                self._atlas_sock = None
+                try:
+                    if self._atlas_ctl is not None:
+                        self._atlas_ctl.stop()
+                except Exception:
+                    pass
+                self._atlas_ctl = None
+                print("SysTerm: Atlas auto-catch disabled (%s)" % e)
 
         if self._atlas is not None:
             self._atlas_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
