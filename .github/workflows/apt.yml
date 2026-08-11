@@ -1,0 +1,162 @@
+name: APT repo
+
+# Build the SysTerm .deb and publish it to the Sysible APT repository, served
+# from this repo's GitHub Pages (gh-pages branch) at
+#   https://sysiblesoftware.github.io/SysTerm
+# so installed Sysible machines get SysTerm/Atlas updates with `apt upgrade`.
+#
+# One-time setup before this can publish (see apt/README.md):
+#   1. Generate a signing key and add its ARMORED PRIVATE key as the repo secret
+#      APT_GPG_PRIVATE_KEY.
+#   2. Settings -> Pages -> Source: "Deploy from a branch", branch gh-pages /.
+# Until the secret exists this workflow still builds the .deb and uploads it as
+# an artifact — it just skips signing and publishing, so it is safe to land
+# first.
+on:
+  push:
+    branches: [dev]
+    paths:                     # only when the package itself could have changed
+      - 'systerm/**'
+      - 'data/**'
+      - 'debian/**'
+      - 'pyproject.toml'
+      - '.github/workflows/apt.yml'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Republish even if this version is already in the repo'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write              # push the gh-pages branch
+
+concurrency:                   # never let two publishes race on gh-pages
+  group: apt-publish
+  cancel-in-progress: false
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build + repo tooling
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y --no-install-recommends \
+            build-essential debhelper dh-python pybuild-plugin-pyproject \
+            python3-all python3-setuptools dpkg-dev apt-utils gnupg
+
+      - name: Build the .deb
+        run: |
+          set -eux
+          dpkg-buildpackage -us -uc -b
+          mkdir -p out
+          mv ../systerm_*_all.deb out/
+          ls -l out
+          VER=$(dpkg-deb -f out/systerm_*_all.deb Version)
+          echo "SYSTERM_VERSION=$VER" >> "$GITHUB_ENV"
+
+      - name: Upload .deb artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: systerm-deb
+          path: out/*.deb
+          if-no-files-found: error
+
+      - name: Check for signing key
+        id: key
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+        run: |
+          if [ -n "$APT_GPG_PRIVATE_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::APT_GPG_PRIVATE_KEY not set — built the .deb but skipping publish. See apt/README.md."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Assemble, sign and publish the repository
+        if: steps.key.outputs.ready == 'true'
+        env:
+          APT_GPG_PRIVATE_KEY: ${{ secrets.APT_GPG_PRIVATE_KEY }}
+          FORCE: ${{ github.event.inputs.force }}
+        run: |
+          set -euo pipefail
+
+          # --- import the signing key, discover its id -----------------------
+          export GNUPGHOME="$(mktemp -d)"
+          chmod 700 "$GNUPGHOME"
+          printf '%s' "$APT_GPG_PRIVATE_KEY" | gpg --batch --import
+          KEYID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec:/{print $5; exit}')
+          echo "Signing with key $KEYID"
+
+          # --- pull the currently-published tree (keeps the pool of old debs) -
+          REPO="$PWD/aptrepo"
+          rm -rf "$REPO"; mkdir -p "$REPO"
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch --depth 1 origin gh-pages
+            git archive FETCH_HEAD | tar -x -C "$REPO"
+          fi
+
+          POOL="$REPO/pool/main/s/systerm"
+          NEW="out/systerm_${SYSTERM_VERSION}_all.deb"
+          if [ -f "$POOL/$(basename "$NEW")" ] && [ "${FORCE:-false}" != "true" ]; then
+            echo "systerm ${SYSTERM_VERSION} already published — nothing to do."
+            exit 0
+          fi
+
+          mkdir -p "$POOL"
+          cp "$NEW" "$POOL/"
+
+          # --- regenerate indexes for every architecture we serve ------------
+          cd "$REPO"
+          : > /dev/null
+          for arch in amd64 arm64; do
+            mkdir -p "dists/stable/main/binary-$arch"
+            # systerm is Architecture: all, so it belongs in each arch's index.
+            apt-ftparchive packages pool > "dists/stable/main/binary-$arch/Packages"
+            gzip -kf "dists/stable/main/binary-$arch/Packages"
+          done
+
+          cat > /tmp/release.conf <<'EOF'
+          APT::FTPArchive::Release::Origin "Sysible";
+          APT::FTPArchive::Release::Label "Sysible";
+          APT::FTPArchive::Release::Suite "stable";
+          APT::FTPArchive::Release::Codename "stable";
+          APT::FTPArchive::Release::Architectures "amd64 arm64";
+          APT::FTPArchive::Release::Components "main";
+          APT::FTPArchive::Release::Description "Sysible package repository (SysTerm / Atlas)";
+          EOF
+          apt-ftparchive -c /tmp/release.conf release dists/stable > dists/stable/Release
+
+          gpg --batch --yes --default-key "$KEYID" -abs \
+            -o dists/stable/Release.gpg dists/stable/Release
+          gpg --batch --yes --default-key "$KEYID" --clearsign \
+            -o dists/stable/InRelease dists/stable/Release
+
+          # public key (armored) for the ISO trust step and manual installs
+          gpg --export --armor "$KEYID" > sysible-archive-keyring.asc
+          touch .nojekyll                       # let Pages serve pool/ and dists/
+          cat > index.html <<'EOF'
+          <!doctype html><meta charset="utf-8"><title>Sysible APT repository</title>
+          <h1>Sysible APT repository</h1>
+          <p>SysTerm &amp; Sysible Atlas updates. Add it with:</p>
+          <pre>curl -fsSL https://sysiblesoftware.github.io/SysTerm/sysible-archive-keyring.asc \
+            | sudo gpg --dearmor -o /usr/share/keyrings/sysible-archive-keyring.gpg
+          echo "deb [signed-by=/usr/share/keyrings/sysible-archive-keyring.gpg] \
+            https://sysiblesoftware.github.io/SysTerm stable main" \
+            | sudo tee /etc/apt/sources.list.d/sysible.list
+          sudo apt update &amp;&amp; sudo apt install systerm</pre>
+          EOF
+
+          # --- publish gh-pages (full regenerated tree, incl. accumulated pool)
+          git init -q
+          git checkout -q -b gh-pages
+          git config user.name  "sysible-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -q -m "apt: publish systerm ${SYSTERM_VERSION}"
+          git push -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}.git" gh-pages
+          echo "Published systerm ${SYSTERM_VERSION} to the APT repo."
