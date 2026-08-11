@@ -1,3 +1,16 @@
+systerm (0.2.32) unstable; urgency=medium
+
+  * Atlas: optional cloud models. The model selector now offers "☁ Claude"
+    (Anthropic) and "☁ GPT" (OpenAI) alongside the local Ollama models. Local
+    stays the default and nothing leaves the machine unless you pick a cloud
+    model; the footer makes the trade-off explicit ("sent to Anthropic/OpenAI").
+    Keys come from SYSIBLE_ANTHROPIC_API_KEY / SYSIBLE_OPENAI_API_KEY or the new
+    [atlas] section of config.ini; picking a cloud model with no key shows setup
+    guidance instead of failing silently. Model ids are overridable via
+    SYSIBLE_ANTHROPIC_MODEL / SYSIBLE_OPENAI_MODEL.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 12:20:00 +0000
+
 systerm (0.2.31) unstable; urgency=medium
 
   * Atlas: the companion pane is now user-resizable. Drag the divider to set its

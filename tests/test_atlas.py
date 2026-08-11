@@ -56,6 +56,45 @@ def test_pick_model_prefers_available():
     assert c.pick_model([]) == "qwen2.5-coder:7b"
 
 
+def test_cloud_sse_parsing_and_keys(monkeypatch):
+    """The opt-in cloud providers: SSE delta extraction, model-error surfacing,
+    and key resolution (env over config.ini). Pure logic behind the gi import."""
+    pytest.importorskip("gi")
+    from systerm.atlas import AtlasClient, cloud_key, _AtlasModelError
+    st = AtlasClient._sse_text
+    # text deltas
+    assert st("anthropic", {"type": "content_block_delta",
+                            "delta": {"type": "text_delta", "text": "he"}}) == "he"
+    assert st("anthropic", {"type": "message_start"}) == ""
+    assert st("openai", {"choices": [{"delta": {"content": "llo"}}]}) == "llo"
+    assert st("openai", {"choices": [{"delta": {}}]}) == ""
+    # model errors become _AtlasModelError (so retry logic doesn't treat them as
+    # transient connection drops)
+    with pytest.raises(_AtlasModelError):
+        st("anthropic", {"type": "error", "error": {"message": "boom"}})
+    with pytest.raises(_AtlasModelError):
+        st("openai", {"error": {"message": "bad key"}})
+    # key resolution: env wins; absent -> None
+    monkeypatch.delenv("SYSIBLE_OPENAI_API_KEY", raising=False)
+    monkeypatch.setenv("SYSIBLE_ANTHROPIC_API_KEY", "sk-ant-xyz")
+    assert cloud_key("anthropic") == "sk-ant-xyz"
+
+
+def test_cloud_dispatch_without_key_fails_clearly(monkeypatch):
+    """Selecting a cloud provider with no key must fail with setup guidance, not
+    hang or send an unauthenticated request."""
+    pytest.importorskip("gi")
+    from systerm.atlas import AtlasClient
+    monkeypatch.delenv("SYSIBLE_ANTHROPIC_API_KEY", raising=False)
+    monkeypatch.setattr("systerm.atlas.cloud_key", lambda p: None)
+    c = AtlasClient()
+    c.provider = "anthropic"
+    errs = []
+    c._run_cloud([{"role": "user", "content": "hi"}],
+                 lambda ch: None, lambda: errs.append("done"), errs.append)
+    assert errs and "API key" in errs[0] and "Anthropic" in errs[0]
+
+
 def test_panel_constructs():
     """The real pane must build without raising (catches markup/GI regressions).
     Skipped where GTK isn't importable (e.g. a headless CI without gir bindings)."""

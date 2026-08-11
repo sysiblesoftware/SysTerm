@@ -182,6 +182,15 @@ apt autoremove = sudo apt autoremove -y
 Disk usage = df -h
 Memory usage = free -h
 Failed services = systemctl --failed
+
+# Sysible Atlas. By default Atlas runs a LOCAL model via Ollama and nothing leaves
+# the machine. Optionally pick "Claude" or "GPT" in the Atlas model selector to
+# use a cloud model instead — that sends the command + terminal output to the
+# provider. Put the key here (or set SYSIBLE_ANTHROPIC_API_KEY / SYSIBLE_OPENAI_API_KEY
+# in the environment). Uncomment and fill in to enable:
+# [atlas]
+# anthropic_api_key =
+# openai_api_key =
 """
 
 

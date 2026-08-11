@@ -63,6 +63,40 @@ def _preferred_model():
 
 DEFAULT_MODEL = os.environ.get("SYSIBLE_AI_MODEL") or _preferred_model()
 
+# --- optional cloud providers (opt-in; local Ollama stays the default) ------ #
+# Atlas is local-first and private by default. These providers send the command
+# and the terminal slice to a third party, so they are never the default: the
+# user must explicitly pick "Claude" or "GPT" in the model selector, and a key
+# must be configured. Model ids are overridable for whatever the account has.
+ANTHROPIC_URL = "https://api.anthropic.com/v1/messages"
+ANTHROPIC_VERSION = "2023-06-01"
+ANTHROPIC_MODEL = os.environ.get("SYSIBLE_ANTHROPIC_MODEL") or "claude-sonnet-5"
+OPENAI_URL = "https://api.openai.com/v1/chat/completions"
+OPENAI_MODEL = os.environ.get("SYSIBLE_OPENAI_MODEL") or "gpt-4o"
+# provider -> (label, env var, config.ini key, human name)
+CLOUD = {
+    "anthropic": ("Claude", "SYSIBLE_ANTHROPIC_API_KEY", "anthropic_api_key", "Anthropic"),
+    "openai":    ("GPT",    "SYSIBLE_OPENAI_API_KEY",    "openai_api_key",    "OpenAI"),
+}
+
+
+def cloud_key(provider):
+    """Resolve a provider's API key: environment first, then the [atlas] section
+    of ~/.config/systerm/config.ini. Returns None if neither is set."""
+    _, env, ini_key, _ = CLOUD[provider]
+    v = (os.environ.get(env) or "").strip()
+    if v:
+        return v
+    try:
+        import configparser
+        from .config import CONFIG_PATH
+        cp = configparser.ConfigParser()
+        cp.read(CONFIG_PATH)
+        return (cp.get("atlas", ini_key, fallback="") or "").strip() or None
+    except Exception:
+        return None
+
+
 SYSTEM_PROMPT = (
     "You are Sysible Atlas, a terse Linux troubleshooting companion inside the "
     "SysTerm terminal on Sysible Linux (Debian/Ubuntu; package manager is apt). You "
@@ -129,6 +163,9 @@ class AtlasClient:
     def __init__(self, url=DEFAULT_URL, model=DEFAULT_MODEL):
         self.url = url
         self.model = model
+        # Which backend serves requests: "ollama" (local, default) or a cloud
+        # provider key from CLOUD ("anthropic"/"openai"). Set by the selector.
+        self.provider = "ollama"
         # True once the user explicitly picks a model in the header selector, so
         # the auto-resolver stops overriding their choice on the next request.
         self.pinned = False
@@ -234,6 +271,10 @@ class AtlasClient:
         return models
 
     def _run(self, messages, emit, done, fail):
+        # Cloud providers are opt-in; dispatch to them when selected. Local Ollama
+        # is the default path below.
+        if self.provider in CLOUD:
+            return self._run_cloud(messages, emit, done, fail)
         # Always target a model that's actually installed. If none is (or the
         # server can't be listed), fail fast with recovery buttons — never send a
         # request for a model the user hasn't pulled, which with Ollama cloud
@@ -311,6 +352,104 @@ class AtlasClient:
             # Absolute backstop: any other error becomes a visible message, never
             # a silently dead thread + blank card.
             fail("model request failed: %s" % e)
+
+    # -- cloud providers (opt-in) -------------------------------------------- #
+    def _run_cloud(self, messages, emit, done, fail):
+        provider = self.provider
+        label, env, ini_key, human = CLOUD[provider]
+        key = cloud_key(provider)
+        if not key:
+            return fail(
+                "%s needs an API key. Set the %s environment variable, or add\n\n"
+                "    [atlas]\n    %s = <your key>\n\n"
+                "to ~/.config/systerm/config.ini, then reopen Atlas. Note: using %s "
+                "sends the command and terminal output to %s (Atlas is local-only "
+                "with Ollama)." % (label, env, ini_key, label, human))
+        try:
+            max_tokens = int(os.environ.get("SYSIBLE_AI_MAX_TOKENS") or 350)
+        except ValueError:
+            max_tokens = 350
+        if provider == "anthropic":
+            # Anthropic takes the system prompt as a top-level field, not a message.
+            system = "\n\n".join(m["content"] for m in messages if m.get("role") == "system")
+            chat = [{"role": m["role"], "content": m["content"]}
+                    for m in messages if m.get("role") != "system"]
+            payload = {"model": ANTHROPIC_MODEL, "max_tokens": max_tokens,
+                       "temperature": 0.2, "stream": True, "messages": chat}
+            if system:
+                payload["system"] = system
+            req = urllib.request.Request(
+                ANTHROPIC_URL, data=json.dumps(payload).encode(),
+                headers={"content-type": "application/json", "x-api-key": key,
+                         "anthropic-version": ANTHROPIC_VERSION}, method="POST")
+        else:  # openai — supports a system-role message directly
+            payload = {"model": OPENAI_MODEL, "messages": messages, "stream": True,
+                       "temperature": 0.2, "max_tokens": max_tokens}
+            req = urllib.request.Request(
+                OPENAI_URL, data=json.dumps(payload).encode(),
+                headers={"content-type": "application/json",
+                         "authorization": "Bearer " + key}, method="POST")
+        self._run_sse(req, provider, human, emit, done, fail)
+
+    def _run_sse(self, req, provider, human, emit, done, fail):
+        """Read a Server-Sent-Events chat stream (Anthropic / OpenAI shape). Unlike
+        the local Ollama path this MUST honor the system proxy, so it uses a fresh
+        default opener rather than self._opener (which strips proxies)."""
+        got = 0
+        try:
+            opener = urllib.request.build_opener()
+            with opener.open(req, timeout=300) as r:
+                for raw in r:
+                    line = raw.decode("utf-8", "replace").strip()
+                    if not line or not line.startswith("data:"):
+                        continue
+                    data = line[5:].strip()
+                    if data == "[DONE]":
+                        break
+                    try:
+                        msg = json.loads(data)
+                    except ValueError:
+                        continue
+                    chunk = self._sse_text(provider, msg)
+                    if chunk:
+                        got += len(chunk)
+                        emit(chunk)
+            if got == 0:
+                return fail("no output from %s. Check the API key, the model id, and "
+                            "your network." % human)
+            done()
+        except _AtlasModelError as e:
+            fail(str(e))
+        except urllib.error.HTTPError as e:
+            body = e.read().decode("utf-8", "replace")
+            hint = ""
+            if e.code in (401, 403):
+                hint = " — the API key looks invalid or lacks access."
+            elif e.code == 404:
+                hint = " — that model id isn't available to your account."
+            fail("%s API error %s%s: %s" % (human, e.code, hint, body[:200]))
+        except (urllib.error.URLError, OSError, http.client.HTTPException) as e:
+            fail("can't reach %s (%s). Check your network/proxy." % (human, e))
+        except Exception as e:
+            fail("%s request failed: %s" % (human, e))
+
+    @staticmethod
+    def _sse_text(provider, msg):
+        """Extract the text delta from one SSE JSON object; raise on a model error."""
+        if provider == "anthropic":
+            t = msg.get("type")
+            if t == "content_block_delta":
+                return (msg.get("delta") or {}).get("text") or ""
+            if t == "error":
+                err = msg.get("error") or {}
+                raise _AtlasModelError(err.get("message") or str(err))
+            return ""
+        # openai
+        if msg.get("error"):
+            err = msg["error"]
+            raise _AtlasModelError(err.get("message") if isinstance(err, dict) else str(err))
+        choices = msg.get("choices") or [{}]
+        return (choices[0].get("delta") or {}).get("content") or ""
 
 
 # --------------------------------------------------------------------------- #
@@ -644,11 +783,13 @@ class AtlasPanel(Gtk.Box):
         picker = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
         picker.get_style_context().add_class("atlas-badge")
         loc = Gtk.Label()
-        loc.set_markup("<span alpha='60%'>local ·</span>")
+        loc.set_markup("<span alpha='60%'>model ·</span>")
         picker.pack_start(loc, False, False, 0)
         self._model_combo = Gtk.ComboBoxText()
         self._model_combo.get_style_context().add_class("atlas-model")
-        self._model_combo.set_tooltip_text("Installed models on this machine — pick one")
+        self._model_combo.set_tooltip_text(
+            "Local Ollama models (default), or a ☁ cloud model (Claude / GPT) — "
+            "cloud sends this session's output off the machine")
         self._model_combo_handler = self._model_combo.connect(
             "changed", self._on_model_changed)
         picker.pack_start(self._model_combo, False, False, 0)
@@ -660,24 +801,44 @@ class AtlasPanel(Gtk.Box):
         combo = self._model_combo
         combo.handler_block(self._model_combo_handler)
         combo.remove_all()
-        if models:
-            for m in models:
-                combo.append_text(m)
-            active = self._client.model if self._client.model in models else models[0]
-            combo.set_active(models.index(active))
-            combo.set_sensitive(True)
-        else:
+        # Parallel list of (provider, model) for each row, so a selection maps back
+        # to a backend without parsing the label.
+        self._combo_items = []
+        for m in (models or []):
+            combo.append_text(m)
+            self._combo_items.append(("ollama", m))
+        if not models:
             combo.append_text("detecting…")
-            combo.set_active(0)
-            combo.set_sensitive(False)
+            self._combo_items.append((None, None))
+        # Cloud options, always offered (opt-in). A ☁ marks that it leaves the box;
+        # a • marks a key is configured and it's ready to use right now.
+        for prov in ("anthropic", "openai"):
+            ready = cloud_key(prov) is not None
+            combo.append_text("☁ " + CLOUD[prov][0] + ("  •" if ready else ""))
+            self._combo_items.append((prov, None))
+        # Restore the active row to whatever the client is currently pointed at.
+        active = 0
+        for i, (prov, mdl) in enumerate(self._combo_items):
+            if prov == self._client.provider and (prov != "ollama" or mdl == self._client.model):
+                active = i
+                break
+        combo.set_active(active)
+        combo.set_sensitive(True)
         combo.handler_unblock(self._model_combo_handler)
 
     def _on_model_changed(self, combo):
-        m = combo.get_active_text()
-        if m and "…" not in m:
-            self._client.model = m
-            self._client.pinned = True   # honor this until they pick again
-            self._refresh_footer()
+        idx = combo.get_active()
+        items = getattr(self, "_combo_items", [])
+        if idx < 0 or idx >= len(items):
+            return
+        prov, mdl = items[idx]
+        if prov is None:            # the "detecting…" placeholder
+            return
+        self._client.provider = prov
+        if prov == "ollama":
+            self._client.model = mdl
+        self._client.pinned = True   # honor this until they pick again
+        self._refresh_footer()
 
     def _build_ask(self):
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
@@ -734,11 +895,23 @@ class AtlasPanel(Gtk.Box):
     # `alpha='NN%'`, and a %-format operator would choke on the `%'` (the bug that
     # twice disabled all of Atlas). Don't reintroduce %-formatting here.
     def _refresh_footer(self):
-        model = self._client.model if self._client.model else "no model"
-        self._footer_left.set_markup(
-            "<span alpha='75%'>● local · Ollama · "
-            + GLib.markup_escape_text(model) + "</span>"
-            "   <span alpha='45%'>· nothing leaves this machine</span>")
+        prov = self._client.provider
+        if prov in CLOUD:
+            label, _env, _ini, human = CLOUD[prov]
+            model = ANTHROPIC_MODEL if prov == "anthropic" else OPENAI_MODEL
+            # A cloud model — be explicit that output leaves the box (the opposite
+            # of the local promise), so the trade-off is never hidden.
+            self._footer_left.set_markup(
+                "<span alpha='75%'>☁ " + GLib.markup_escape_text(human) + " · "
+                + GLib.markup_escape_text(model) + "</span>"
+                "   <span alpha='45%'>· sent to " + GLib.markup_escape_text(human)
+                + "</span>")
+        else:
+            model = self._client.model if self._client.model else "no model"
+            self._footer_left.set_markup(
+                "<span alpha='75%'>● local · Ollama · "
+                + GLib.markup_escape_text(model) + "</span>"
+                "   <span alpha='45%'>· nothing leaves this machine</span>")
 
     def _refresh_model_labels(self, models=None):
         # Populate the header selector from what's actually installed, then sync
