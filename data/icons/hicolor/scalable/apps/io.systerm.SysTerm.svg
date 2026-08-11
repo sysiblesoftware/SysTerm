@@ -14,9 +14,10 @@
   <!-- Sysible hexagon as a terminal screen. -->
   <path d="M64 9 L111 36.5 L111 91.5 L64 119 L17 91.5 L17 36.5 Z"
         fill="url(#screen)" stroke="url(#edge)" stroke-width="5" stroke-linejoin="miter"/>
-  <!-- The universal terminal prompt: >_  (chevron + underscore cursor), in the
-       Sysible brand green (#6ddb73). Blue frame + green prompt = logo palette. -->
+  <!-- The universal terminal prompt: >_  — green chevron (#6ddb73) + BLUE underscore
+       cursor (#79a0ff), matching the Sysible brand family accent (green symbol,
+       blue accent). Blue frame + green ">" + blue "_" = logo palette. -->
   <path d="M40 46 L59 64 L40 82" fill="none" stroke="#6ddb73"
         stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
-  <rect x="65" y="76" width="27" height="8" rx="4" fill="#6ddb73"/>
+  <rect x="65" y="76" width="27" height="8" rx="4" fill="#79a0ff"/>
 </svg>
