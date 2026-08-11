@@ -623,18 +623,23 @@ class SysTermWindow(Gtk.ApplicationWindow):
             # Terminal stays the dominant pane; Atlas is a fixed-width sidebar.
             self._atlas_paned.set_position(max(200, width - self._atlas_width))
 
+        # Only place once the paned is wide enough that a fixed Atlas sidebar
+        # still leaves the terminal dominant. During window construction the
+        # paned goes through one or more transient NARROW allocations before it
+        # reaches the real window width; latching onto one of those pins the
+        # divider at the 200px floor and Atlas ends up taking most of the window.
+        ready = self._atlas_width + 200
         alloc = self._atlas_paned.get_allocation()
-        if alloc.width > 1:
+        if alloc.width >= ready:
             _place(alloc.width)
         else:
-            # First-run reveal happens DURING window construction, before the paned
-            # is allocated, so alloc.width is still 1 and the divider never gets
-            # positioned — Atlas then opens at its large natural width instead of a
-            # ~420px sidebar. Place the divider the moment the real width is known.
+            # Not yet allocated at full size — position the divider the moment
+            # the paned is actually wide enough, then stop correcting so the
+            # user can drag it freely afterwards.
             hid = []
 
             def _on_alloc(paned, allocation):
-                if allocation.width > 1 and hid:
+                if allocation.width >= ready and hid:
                     paned.disconnect(hid[0])
                     hid.clear()
                     _place(allocation.width)
