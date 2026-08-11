@@ -619,31 +619,15 @@ class SysTermWindow(Gtk.ApplicationWindow):
         if not self._atlas.get_visible():
             self._atlas.show()
 
-        def _place(width):
-            # Terminal stays the dominant pane; Atlas is a fixed-width sidebar.
-            self._atlas_paned.set_position(max(200, width - self._atlas_width))
-
-        # Only place once the paned is wide enough that a fixed Atlas sidebar
-        # still leaves the terminal dominant. During window construction the
-        # paned goes through one or more transient NARROW allocations before it
-        # reaches the real window width; latching onto one of those pins the
-        # divider at the 200px floor and Atlas ends up taking most of the window.
-        ready = self._atlas_width + 200
+        # Atlas's natural width is capped (see AtlasPanel), so on FIRST-RUN the
+        # paned already opens it as a narrow sidebar with the terminal dominant —
+        # no divider positioning needed, and nothing can balloon it. We only need
+        # to reposition when REOPENING after a hide (hide parks the divider at
+        # full width to reclaim terminal space); by then the window is allocated,
+        # so the width is known and the placement is exact — no timing hacks.
         alloc = self._atlas_paned.get_allocation()
-        if alloc.width >= ready:
-            _place(alloc.width)
-        else:
-            # Not yet allocated at full size — position the divider the moment
-            # the paned is actually wide enough, then stop correcting so the
-            # user can drag it freely afterwards.
-            hid = []
-
-            def _on_alloc(paned, allocation):
-                if allocation.width >= ready and hid:
-                    paned.disconnect(hid[0])
-                    hid.clear()
-                    _place(allocation.width)
-            hid.append(self._atlas_paned.connect("size-allocate", _on_alloc))
+        if alloc.width > 1:
+            self._atlas_paned.set_position(max(200, alloc.width - self._atlas_width))
 
     def _remember_atlas_width(self, paned, _param):
         """Record the width the user drags Atlas to, so it persists across

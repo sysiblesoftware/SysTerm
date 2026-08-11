@@ -735,6 +735,13 @@ class AtlasPanel(Gtk.Box):
         self._cards.set_border_width(12)
         sw = Gtk.ScrolledWindow()
         sw.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
+        # Pin the panel's NATURAL width. Without this the scroller reports the
+        # widest card (the Setup card's model buttons, ~600px) as its natural
+        # width, so on first-run GtkPaned opens Atlas at ~2/3 of the window
+        # instead of as a sidebar. Capping the natural width makes the sidebar
+        # narrow BY CONSTRUCTION — no divider-timing hack can undo it.
+        sw.set_propagate_natural_width(False)
+        sw.set_min_content_width(360)
         sw.add(self._cards)
         self._scroller = sw
         self.pack_start(sw, True, True, 0)
