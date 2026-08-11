@@ -81,6 +81,38 @@ echo "deb [signed-by=/usr/share/keyrings/sysible-archive-keyring.gpg] \
 sudo apt update && sudo apt install systerm
 ```
 
+## Pending: bake the update channel into the ISO
+
+Once the repo is published (key added + Pages live), add this guarded step to
+`sysible-linux/live-build/build.sh` (before the ISO assemble) so every installed
+machine trusts the channel and gets `apt upgrade`-based SysTerm/Atlas updates.
+It commits no key material and is a clean no-op until the repo is reachable:
+
+```sh
+# --- trust the Sysible APT update channel (once it's published) ------------
+APT_BASE="https://sysiblesoftware.github.io/SysTerm"
+if curl -fsSL "$APT_BASE/sysible-archive-keyring.asc" -o /tmp/sysible-apt.asc 2>/dev/null; then
+    mkdir -p config/includes.chroot/usr/share/keyrings \
+             config/includes.chroot/etc/apt/sources.list.d
+    gpg --dearmor < /tmp/sysible-apt.asc \
+        > config/includes.chroot/usr/share/keyrings/sysible-archive-keyring.gpg
+    cat > config/includes.chroot/etc/apt/sources.list.d/sysible.sources <<EOF
+Types: deb
+URIs: $APT_BASE
+Suites: stable
+Components: main
+Signed-By: /usr/share/keyrings/sysible-archive-keyring.gpg
+EOF
+    echo "Sysible APT update channel: trusted."
+else
+    echo "Sysible APT channel not published yet — skipping."
+fi
+```
+
+Decisions defaulted (change before generating the key if you disagree): host
+from this repo's GitHub Pages at `https://sysiblesoftware.github.io/SysTerm`;
+scope to SysTerm/Atlas only for now.
+
 ## Layout
 
 ```
