@@ -1,3 +1,12 @@
+systerm (0.2.31) unstable; urgency=medium
+
+  * Atlas: the companion pane is now user-resizable. Drag the divider to set its
+    width — wider or narrower — and the width you pick persists across close and
+    reopen. Previously it was pinned to a fixed size (packed shrink=False and
+    reset to a hard-coded width on every open), so it couldn't be changed.
+
+ -- Sysible <maintainers@sysible.io>  Tue, 11 Aug 2026 11:33:53 +0000
+
 systerm (0.2.30) unstable; urgency=medium
 
   * Atlas: a spinner + "Generating…" placeholder shows while the model works (the

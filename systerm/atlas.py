@@ -586,7 +586,9 @@ class AtlasPanel(Gtk.Box):
         self.on_analyze = None
         self.on_close = None
         self.get_style_context().add_class("atlas-panel")
-        self.set_size_request(360, -1)
+        # A comfortable minimum width; the divider can be dragged narrower than the
+        # panel's natural size because its Paned slot is packed shrink=True.
+        self.set_size_request(300, -1)
 
         self.pack_start(self._build_header(), False, False, 0)
 

@@ -96,7 +96,14 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._atlas_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
             self._atlas_paned.set_wide_handle(True)
             self._atlas_paned.pack1(self.notebook, True, True)
-            self._atlas_paned.pack2(self._atlas, False, False)
+            # shrink=True lets the user drag the divider freely (both wider AND
+            # narrower); resize=False keeps Atlas's width steady when the WINDOW
+            # is resized (the terminal side absorbs the change instead).
+            self._atlas_paned.pack2(self._atlas, False, True)
+            # Remember the width the user drags to, so reopening Atlas restores it
+            # instead of snapping back to a fixed size.
+            self._atlas_width = 420
+            self._atlas_paned.connect("notify::position", self._remember_atlas_width)
             self.add(self._atlas_paned)
             self.connect("destroy", lambda *_: self._atlas_ctl and self._atlas_ctl.stop())
         else:
@@ -613,7 +620,21 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._atlas.show()
             alloc = self._atlas_paned.get_allocation()
             if alloc.width > 1:
-                self._atlas_paned.set_position(max(360, alloc.width - 420))
+                # Restore the user's chosen Atlas width (default on first open),
+                # keeping at least 200px for the terminal side.
+                self._atlas_paned.set_position(
+                    max(200, alloc.width - self._atlas_width))
+
+    def _remember_atlas_width(self, paned, _param):
+        """Record the width the user drags Atlas to, so it persists across
+        hide/show. Only while Atlas is visible — the hide() path parks the divider
+        at full width to reclaim terminal space, which isn't a real width."""
+        if self._atlas is None or not self._atlas.get_visible():
+            return
+        alloc = paned.get_allocation()
+        w = alloc.width - paned.get_position()
+        if w > 120:
+            self._atlas_width = w
 
     def _term_by_id(self, pane_id):
         for t in self.terminals:
