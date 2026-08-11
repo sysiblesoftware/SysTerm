@@ -618,12 +618,27 @@ class SysTermWindow(Gtk.ApplicationWindow):
             return
         if not self._atlas.get_visible():
             self._atlas.show()
-            alloc = self._atlas_paned.get_allocation()
-            if alloc.width > 1:
-                # Restore the user's chosen Atlas width (default on first open),
-                # keeping at least 200px for the terminal side.
-                self._atlas_paned.set_position(
-                    max(200, alloc.width - self._atlas_width))
+
+        def _place(width):
+            # Terminal stays the dominant pane; Atlas is a fixed-width sidebar.
+            self._atlas_paned.set_position(max(200, width - self._atlas_width))
+
+        alloc = self._atlas_paned.get_allocation()
+        if alloc.width > 1:
+            _place(alloc.width)
+        else:
+            # First-run reveal happens DURING window construction, before the paned
+            # is allocated, so alloc.width is still 1 and the divider never gets
+            # positioned — Atlas then opens at its large natural width instead of a
+            # ~420px sidebar. Place the divider the moment the real width is known.
+            hid = []
+
+            def _on_alloc(paned, allocation):
+                if allocation.width > 1 and hid:
+                    paned.disconnect(hid[0])
+                    hid.clear()
+                    _place(allocation.width)
+            hid.append(self._atlas_paned.connect("size-allocate", _on_alloc))
 
     def _remember_atlas_width(self, paned, _param):
         """Record the width the user drags Atlas to, so it persists across
