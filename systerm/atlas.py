@@ -124,6 +124,51 @@ def cloud_key(provider):
         return None
 
 
+def save_atlas_key(ini_key, value):
+    """Upsert `ini_key = value` into the [atlas] section of config.ini, preserving
+    the rest of the file (comments and other sections included), and tighten the
+    file to 0600 since it now holds a secret. Creates the file/section as needed.
+    Returns True on success. Used by the Atlas setup UI so users can paste a
+    Claude/GPT key instead of hand-editing the file."""
+    import re
+    from .config import CONFIG_DIR, CONFIG_PATH, ensure_default_config
+    value = (value or "").strip()
+    line = "%s = %s" % (ini_key, value)
+    try:
+        os.makedirs(CONFIG_DIR, exist_ok=True)
+        ensure_default_config()            # writes the commented template if absent
+        try:
+            with open(CONFIG_PATH, encoding="utf-8") as f:
+                text = f.read()
+        except OSError:
+            text = ""
+        # Find an ACTIVE (uncommented) [atlas] header — the template ships it as
+        # "# [atlas]", which must NOT match, so we append a real section instead.
+        m = re.search(r"(?m)^\[atlas\][ \t]*$", text)
+        if m:
+            start = m.end()
+            nxt = re.search(r"(?m)^\[", text[start:])
+            end = start + (nxt.start() if nxt else len(text) - start)
+            body = text[start:end]
+            key_re = re.compile(r"(?mi)^[ \t]*%s[ \t]*=.*$" % re.escape(ini_key))
+            if key_re.search(body):
+                body = key_re.sub(line, body, count=1)
+            else:
+                body = body.rstrip("\n") + "\n" + line + "\n"
+            text = text[:start] + body + text[end:]
+        else:
+            text = text.rstrip("\n") + "\n\n[atlas]\n" + line + "\n"
+        with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            f.write(text)
+        try:
+            os.chmod(CONFIG_PATH, 0o600)
+        except OSError:
+            pass
+        return True
+    except OSError:
+        return False
+
+
 SYSTEM_PROMPT = (
     "You are Sysible Atlas, a terse Linux troubleshooting companion inside the "
     "SysTerm terminal on Sysible Linux (Debian/Ubuntu; package manager is apt). You "
@@ -408,11 +453,11 @@ class AtlasClient:
         key = cloud_key(provider)
         if not key:
             return fail(
-                "%s needs an API key. Set the %s environment variable, or add\n\n"
-                "    [atlas]\n    %s = <your key>\n\n"
-                "to ~/.config/systerm/config.ini, then reopen Atlas. Note: using %s "
-                "sends the command and terminal output to %s (Atlas is local-only "
-                "with Ollama)." % (label, env, ini_key, label, human))
+                "%s needs an API key. Open the Setup card (the 'Setup' button in the "
+                "footer) and paste your key under 'Cloud models' — or set the %s "
+                "environment variable. Note: using %s sends the command and terminal "
+                "output to %s (Atlas is local-only with Ollama)."
+                % (label, env, label, human))
         try:
             max_tokens = int(os.environ.get("SYSIBLE_AI_MAX_TOKENS") or 350)
         except ValueError:
@@ -1084,7 +1129,96 @@ class AtlasPanel(Gtk.Box):
         recheck.set_halign(Gtk.Align.START)
         recheck.connect("clicked", lambda *_: self.refresh_setup())
         box.pack_start(recheck, False, False, 0)
+        # Optional cloud providers — built ONCE here (not in refresh_setup, which
+        # rebuilds on every probe) so typed keys aren't wiped mid-entry.
+        box.pack_start(self._build_cloud_keys(), False, False, 0)
         return box
+
+    # ----- optional cloud keys (Claude / GPT) ------------------------------
+    def _build_cloud_keys(self):
+        """Paste a Claude / GPT API key so the ☁ cloud models in the selector work,
+        without hand-editing config.ini. Keys are written to the [atlas] section of
+        ~/.config/systerm/config.ini (tightened to 0600)."""
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        box.get_style_context().add_class("atlas-card")
+        t = Gtk.Label(xalign=0.0)
+        t.set_markup("<b>Cloud models</b>  <span alpha='60%'>· optional</span>")
+        t.get_style_context().add_class("atlas-card-title")
+        box.pack_start(t, False, False, 0)
+        intro = Gtk.Label(
+            xalign=0.0, wrap=True,
+            label="Atlas is local by default. Paste a key to enable a ☁ cloud model "
+                  "in the selector above — that sends this session's output to the "
+                  "provider. Saved to your config.ini.")
+        intro.get_style_context().add_class("atlas-prose")
+        box.pack_start(intro, False, False, 0)
+        self._key_rows = {}
+        for prov in ("anthropic", "openai"):
+            box.pack_start(self._key_row(prov), False, False, 0)
+        return box
+
+    def _key_row(self, prov):
+        label, env, ini_key, human = CLOUD[prov]
+        via_env = bool((os.environ.get(env) or "").strip())
+        row = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=3)
+        head = Gtk.Label(xalign=0.0)
+        head.set_markup("<b>" + label + "</b>  <span alpha='55%'>· "
+                        + GLib.markup_escape_text(human) + "</span>")
+        head.get_style_context().add_class("atlas-prose")
+        row.pack_start(head, False, False, 0)
+        line = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        entry = Gtk.Entry()
+        entry.set_visibility(False)                    # it's a secret
+        entry.set_input_purpose(Gtk.InputPurpose.PASSWORD)
+        entry.set_hexpand(True)
+        entry.set_placeholder_text(
+            (human + " key comes from the environment") if via_env
+            else ("Paste " + human + " API key"))
+        entry.set_sensitive(not via_env)
+        entry.connect("activate", self._on_save_key, prov)
+        save = Gtk.Button(label="Save")
+        save.get_style_context().add_class("atlas-run")
+        save.set_sensitive(not via_env)
+        save.connect("clicked", self._on_save_key, prov)
+        line.pack_start(entry, True, True, 0)
+        line.pack_start(save, False, False, 0)
+        row.pack_start(line, False, False, 0)
+        stat = Gtk.Label(xalign=0.0, wrap=True)
+        stat.get_style_context().add_class("atlas-prose")
+        row.pack_start(stat, False, False, 0)
+        self._key_rows[prov] = (entry, stat)
+        self._reflect_key_state(prov)
+        return row
+
+    def _reflect_key_state(self, prov):
+        label, env, ini_key, human = CLOUD[prov]
+        _, stat = self._key_rows[prov]
+        if (os.environ.get(env) or "").strip():
+            stat.set_markup("<span alpha='70%'>Provided by the environment ("
+                            + env + ").</span>")
+        elif cloud_key(prov):
+            stat.set_markup("<span alpha='70%'>• key saved — pick ☁ " + label
+                            + " above. Paste a new one to replace it.</span>")
+        else:
+            stat.set_text("")
+
+    def _on_save_key(self, _w, prov):
+        entry, stat = self._key_rows[prov]
+        val = entry.get_text().strip()
+        if not val:
+            stat.set_markup("<span alpha='70%'>Enter a key first.</span>")
+            return
+        if save_atlas_key(CLOUD[prov][2], val):
+            entry.set_text("")
+            self._reflect_key_state(prov)
+            # Refresh the model selector so its ☁ • "ready" marker updates.
+            try:
+                self._refresh_model_labels()
+            except Exception:
+                pass
+        else:
+            stat.set_markup("<span alpha='70%'>Couldn't write config.ini — check "
+                            "permissions on ~/.config/systerm.</span>")
 
     def _setup_row(self, markup):
         lab = Gtk.Label(xalign=0.0, wrap=True)

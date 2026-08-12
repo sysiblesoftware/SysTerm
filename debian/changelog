@@ -1,3 +1,13 @@
+systerm (0.2.41) unstable; urgency=medium
+
+  * Atlas setup: add a "Cloud models" section to paste a Claude / GPT API key,
+    so the ☁ cloud models can be enabled from the UI instead of hand-editing
+    config.ini. Keys are written to the [atlas] section (file tightened to 0600),
+    the selector's "ready" marker updates on save, and the cloud-provider error
+    now points at this Setup card.
+
+ -- Sysible <maintainers@sysible.com>  Wed, 12 Aug 2026 23:55:00 +0000
+
 systerm (0.2.40) unstable; urgency=medium
 
   * Atlas setup: add a "Reinstall Ollama" button. A present-but-broken ("borked")

@@ -59,6 +59,39 @@ def test_reinstall_affordance_present_for_borked_install():
         "Reinstall button should reuse OLLAMA_INSTALL as a secondary (ghost) action")
 
 
+def test_save_atlas_key_upserts_and_preserves(tmp_path, monkeypatch):
+    """Pasting a key writes it into [atlas] without destroying the rest of the
+    file, updates on a second save, and tightens perms to 0600."""
+    pytest.importorskip("gi")
+    import os
+    from systerm import config as cfg
+    from systerm.atlas import save_atlas_key, cloud_key
+    p = tmp_path / "config.ini"
+    monkeypatch.setattr(cfg, "CONFIG_DIR", str(tmp_path))
+    monkeypatch.setattr(cfg, "CONFIG_PATH", str(p))
+    # Pre-existing user content that must survive.
+    p.write_text("[profile]\nfont = Monospace 9\n", encoding="utf-8")
+    monkeypatch.delenv("SYSIBLE_ANTHROPIC_API_KEY", raising=False)
+
+    assert save_atlas_key("anthropic_api_key", "sk-ant-111") is True
+    text = p.read_text(encoding="utf-8")
+    assert "[profile]" in text and "font = Monospace 9" in text  # preserved
+    assert "[atlas]" in text and "anthropic_api_key = sk-ant-111" in text
+    assert cloud_key("anthropic") == "sk-ant-111"
+    assert (os.stat(str(p)).st_mode & 0o777) == 0o600
+
+    # Second save replaces in place (no duplicate key line).
+    assert save_atlas_key("anthropic_api_key", "sk-ant-222") is True
+    text = p.read_text(encoding="utf-8")
+    assert text.count("anthropic_api_key") == 1
+    assert "sk-ant-222" in text and "sk-ant-111" not in text
+    # A second provider adds alongside, still one [atlas] section.
+    assert save_atlas_key("openai_api_key", "sk-oai-999") is True
+    text = p.read_text(encoding="utf-8")
+    assert text.count("[atlas]") == 1
+    assert "openai_api_key = sk-oai-999" in text
+
+
 def test_pick_model_prefers_available():
     # pick_model is pure logic, but importing the module pulls in gi — skip where
     # the GTK bindings aren't installed (the AST scan above needs no gi).
