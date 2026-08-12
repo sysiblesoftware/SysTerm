@@ -741,7 +741,7 @@ class AtlasPanel(Gtk.Box):
         # instead of as a sidebar. Capping the natural width makes the sidebar
         # narrow BY CONSTRUCTION — no divider-timing hack can undo it.
         sw.set_propagate_natural_width(False)
-        sw.set_min_content_width(360)
+        sw.set_min_content_width(320)
         sw.add(self._cards)
         self._scroller = sw
         self.pack_start(sw, True, True, 0)
@@ -802,7 +802,7 @@ class AtlasPanel(Gtk.Box):
         # Close (hide) the pane. Hiding keeps the widget alive, so every card and
         # the whole conversation history is preserved — reopening (Alt+A, the
         # right-click entry, or a caught error) shows exactly where you left off.
-        close = Gtk.Button(label="Hide  ✕")
+        close = Gtk.Button(label="✕")
         close.get_style_context().add_class("atlas-ghost")
         close.get_style_context().add_class("atlas-close")
         close.set_tooltip_text("Hide Atlas and return to the terminal (Alt+A) — "
@@ -998,6 +998,28 @@ class AtlasPanel(Gtk.Box):
         b.connect("clicked", lambda _w, c=cmd: self.on_run and self.on_run(c))
         return b
 
+    def _model_button(self, name, desc, cmd):
+        """A model-download button whose label is TWO lines (name over a wrapped
+        description) so it fits the narrow companion sidebar fully — a single-line
+        'name (code · ~4.7 GB · best default)' is ~430px and gets clipped."""
+        b = Gtk.Button()
+        b.get_style_context().add_class("atlas-run")
+        b.set_halign(Gtk.Align.FILL)          # span the panel width
+        inner = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=1)
+        top = Gtk.Label(xalign=0.0, label="▾  " + name)
+        top.set_ellipsize(Pango.EllipsizeMode.END)
+        sub = Gtk.Label(xalign=0.0, wrap=True)
+        # Concatenate (never %-format) — the literal contains alpha='65%', and a
+        # % operator over it raises "unsupported format character" (the bug that
+        # twice disabled Atlas; guarded by tests/test_atlas.py).
+        sub.set_markup("<span alpha='65%' size='small'>"
+                       + GLib.markup_escape_text(desc) + "</span>")
+        inner.pack_start(top, False, False, 0)
+        inner.pack_start(sub, False, False, 0)
+        b.add(inner)
+        b.connect("clicked", lambda _w, c=cmd: self.on_run and self.on_run(c))
+        return b
+
     def refresh_setup(self):
         for c in self._setup_status.get_children():
             self._setup_status.remove(c)
@@ -1042,8 +1064,8 @@ class AtlasPanel(Gtk.Box):
             s.pack_start(self._setup_row(
                 "<span alpha='70%'>Download a model:</span>"), False, False, 0)
             for name, desc in self.PULLS:
-                s.pack_start(self._setup_button("▾  %s   (%s)" % (name, desc),
-                             "ollama pull %s" % name), False, False, 0)
+                s.pack_start(self._model_button(name, desc, "ollama pull %s" % name),
+                             False, False, 0)
         s.show_all()
         return False
 

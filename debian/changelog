@@ -1,3 +1,14 @@
+systerm (0.2.35) unstable; urgency=medium
+
+  * Atlas: make the setup options fully visible in the narrow companion
+    sidebar. The model-download buttons were a single ~430px line
+    ('name (code · ~4.7 GB · best default)') that overflowed and clipped on
+    the right; they are now two lines (name over a wrapped description) so
+    they fit any sidebar width. Reduced the setup card min width (360->320)
+    and shrank the header Hide button to '✕' so the header no longer clips.
+
+ -- Sysible <dev@sysible.io>  Wed, 12 Aug 2026 11:52:41 +0000
+
 systerm (0.2.34) unstable; urgency=medium
 
   * Rebrand to the Sysible SES identity: new app/dock icon — dark rounded
