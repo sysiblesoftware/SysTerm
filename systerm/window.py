@@ -559,20 +559,11 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._headerbar = None
 
     def _brand_logo(self, px):
-        """The SysTerm mark for the titlebar. Prefer the themed icon, but ONLY if
-        it actually resolves — a missing themed icon renders GTK's broken-image
-        placeholder (not an exception), which is what showed the empty box in the
-        titlebar. Fall back to loading the installed icon file directly so a cold
-        icon cache still shows the mark; give up quietly (no logo, never a broken
-        glyph) if neither is available."""
-        try:
-            theme = Gtk.IconTheme.get_default()
-            if theme is not None and theme.has_icon(APP_ID):
-                img = Gtk.Image.new_from_icon_name(APP_ID, Gtk.IconSize.LARGE_TOOLBAR)
-                img.set_pixel_size(px)
-                return img
-        except Exception:
-            pass
+        """The SysTerm mark for the titlebar. Load the INSTALLED icon file first —
+        the package always ships it, so this never depends on the icon-theme cache
+        (whose miss is exactly what rendered GTK's broken-image placeholder before,
+        because a missing themed icon returns a placeholder, not an exception).
+        Fall back to the themed icon, then to no logo — never a broken glyph."""
         for path in ("/usr/share/icons/hicolor/scalable/apps/%s.svg" % APP_ID,
                      "/usr/share/icons/hicolor/256x256/apps/%s.png" % APP_ID,
                      "/usr/share/icons/hicolor/128x128/apps/%s.png" % APP_ID,
@@ -583,6 +574,14 @@ class SysTermWindow(Gtk.ApplicationWindow):
                     return Gtk.Image.new_from_pixbuf(pb)
             except Exception:
                 continue
+        try:
+            theme = Gtk.IconTheme.get_default()
+            if theme is not None and theme.has_icon(APP_ID):
+                img = Gtk.Image.new_from_icon_name(APP_ID, Gtk.IconSize.LARGE_TOOLBAR)
+                img.set_pixel_size(px)
+                return img
+        except Exception:
+            pass
         return None
 
     # ===== broadcast (type once, send to every pane) =======================

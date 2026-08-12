@@ -1,3 +1,12 @@
+systerm (0.2.38) unstable; urgency=medium
+
+  * Titlebar icon: load the installed icon FILE first instead of the themed
+    icon name, so the mark never depends on the icon-theme cache (a cache miss
+    was what left GTK's broken-image placeholder in the titlebar). Themed icon
+    is now only a fallback; still never renders a broken glyph.
+
+ -- Sysible <maintainers@sysible.com>  Wed, 12 Aug 2026 19:29:29 +0000
+
 systerm (0.2.37) unstable; urgency=medium
 
   * Titlebar: fix the missing/broken app icon in the client-side headerbar. The
