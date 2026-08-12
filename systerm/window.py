@@ -9,7 +9,7 @@ import re
 import gi
 
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk, Gio, GLib, Gdk, Pango  # noqa: E402
+from gi.repository import Gtk, Gio, GLib, Gdk, Pango, GdkPixbuf  # noqa: E402
 
 from . import __version__
 from .terminal import SysTermTerminal
@@ -547,16 +547,43 @@ class SysTermWindow(Gtk.ApplicationWindow):
         try:
             bar = Gtk.HeaderBar()
             bar.set_show_close_button(True)
-            logo = Gtk.Image.new_from_icon_name(APP_ID, Gtk.IconSize.LARGE_TOOLBAR)
-            logo.set_pixel_size(20)
-            logo.set_margin_start(2)
-            bar.pack_start(logo)
+            logo = self._brand_logo(20)
+            if logo is not None:
+                logo.set_margin_start(2)
+                bar.pack_start(logo)
             bar.set_title("SysTerm")
             bar.set_subtitle("sysible")
             self._headerbar = bar
             self.set_titlebar(bar)
         except Exception:
             self._headerbar = None
+
+    def _brand_logo(self, px):
+        """The SysTerm mark for the titlebar. Prefer the themed icon, but ONLY if
+        it actually resolves — a missing themed icon renders GTK's broken-image
+        placeholder (not an exception), which is what showed the empty box in the
+        titlebar. Fall back to loading the installed icon file directly so a cold
+        icon cache still shows the mark; give up quietly (no logo, never a broken
+        glyph) if neither is available."""
+        try:
+            theme = Gtk.IconTheme.get_default()
+            if theme is not None and theme.has_icon(APP_ID):
+                img = Gtk.Image.new_from_icon_name(APP_ID, Gtk.IconSize.LARGE_TOOLBAR)
+                img.set_pixel_size(px)
+                return img
+        except Exception:
+            pass
+        for path in ("/usr/share/icons/hicolor/scalable/apps/%s.svg" % APP_ID,
+                     "/usr/share/icons/hicolor/256x256/apps/%s.png" % APP_ID,
+                     "/usr/share/icons/hicolor/128x128/apps/%s.png" % APP_ID,
+                     "/usr/share/icons/hicolor/64x64/apps/%s.png" % APP_ID):
+            try:
+                if os.path.exists(path):
+                    pb = GdkPixbuf.Pixbuf.new_from_file_at_size(path, px, px)
+                    return Gtk.Image.new_from_pixbuf(pb)
+            except Exception:
+                continue
+        return None
 
     # ===== broadcast (type once, send to every pane) =======================
     def toggle_broadcast(self):

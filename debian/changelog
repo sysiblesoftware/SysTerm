@@ -1,3 +1,15 @@
+systerm (0.2.37) unstable; urgency=medium
+
+  * Titlebar: fix the missing/broken app icon in the client-side headerbar. The
+    logo used Gtk.Image.new_from_icon_name(APP_ID), which renders GTK's
+    broken-image placeholder (not an exception) when the icon theme can't
+    resolve io.systerm.SysTerm at runtime — the empty box seen in the titlebar.
+    Load the mark defensively: use the themed icon only when it truly resolves,
+    else load the installed icon file directly (scalable SVG / hicolor PNG), else
+    show no logo. Never a broken glyph.
+
+ -- Sysible <maintainers@sysible.com>  Wed, 12 Aug 2026 19:03:20 +0000
+
 systerm (0.2.36) unstable; urgency=medium
 
   * Atlas: make it a tool you turn on when you want, not a background load.
