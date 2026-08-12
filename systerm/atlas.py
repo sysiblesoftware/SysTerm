@@ -297,6 +297,24 @@ class AtlasClient:
             self.pick_model(models)
         return models
 
+    def unload(self):
+        """Ask Ollama to unload the current local model immediately, freeing the
+        RAM/CPU it holds. Best-effort, in a background thread; cloud providers have
+        nothing resident to unload."""
+        if self.provider in CLOUD:
+            return
+        model = self.model
+        def work():
+            try:
+                data = json.dumps({"model": model, "keep_alive": 0}).encode()
+                req = urllib.request.Request(
+                    self.url + "/api/generate", data=data,
+                    headers={"Content-Type": "application/json"}, method="POST")
+                self._opener.open(req, timeout=10).read()
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
+
     def _run(self, messages, emit, done, fail):
         # Cloud providers are opt-in; dispatch to them when selected. Local Ollama
         # is the default path below.
@@ -754,6 +772,7 @@ class AtlasPanel(Gtk.Box):
         self.on_run = None
         self.on_analyze = None
         self.on_close = None
+        self._stopped = False    # Stop button: model unloaded, Atlas idle
         self.get_style_context().add_class("atlas-panel")
         # A comfortable minimum width; the divider can be dragged narrower than the
         # panel's natural size because its Paned slot is packed shrink=True.
@@ -832,13 +851,25 @@ class AtlasPanel(Gtk.Box):
         # Close (hide) the pane. Hiding keeps the widget alive, so every card and
         # the whole conversation history is preserved — reopening (Alt+A, the
         # right-click entry, or a caught error) shows exactly where you left off.
-        close = Gtk.Button(label="✕")
+        close = Gtk.Button(label="Hide")
         close.get_style_context().add_class("atlas-ghost")
         close.get_style_context().add_class("atlas-close")
         close.set_tooltip_text("Hide Atlas and return to the terminal (Alt+A) — "
                                "history is kept. This does NOT close the window.")
         close.connect("clicked", lambda *_: self.on_close and self.on_close())
         head.pack_end(close, False, False, 0)   # rightmost in the Atlas header
+        # Stop / Start: turn Atlas's local model OFF (frees the RAM/CPU it holds)
+        # and stop it responding to the terminal — without closing the pane. Click
+        # again to start it back up. This is the visible "off switch" for Atlas.
+        self._power = Gtk.Button(label="◼ Stop")
+        self._power.get_style_context().add_class("atlas-ghost")
+        self._power.set_tooltip_text("Stop Atlas: unload the local model and stop "
+                                     "watching the terminal (frees RAM/CPU). Click "
+                                     "again to start it back up.")
+        self._power.connect("clicked", self._toggle_power)
+        head.pack_end(self._power, False, False, 0)   # just left of Hide
+        self._dot = dot        # refs so Stop/Start can reflect state
+        self._title = title
         # Model selector — populated from the server's installed models, so you
         # SEE what's available and pick it, rather than Atlas guessing a default
         # that may not be pulled. Shows "detecting…" until the first probe returns.
@@ -858,6 +889,44 @@ class AtlasPanel(Gtk.Box):
         self._refresh_model_combo([])   # initial "detecting…"
         head.pack_end(picker, False, False, 0)
         return head
+
+    def _toggle_power(self, *_):
+        """Stop <-> Start. Stop unloads the local model and marks Atlas idle so it
+        stops answering and stops reacting to failed commands; Start re-enables it."""
+        self._stopped = not self._stopped
+        if self._stopped:
+            try:
+                self._client.unload()
+            except Exception:
+                pass
+        else:
+            self.refresh_setup()
+        self._reflect_power()
+
+    def is_stopped(self):
+        return self._stopped
+
+    def _reflect_power(self):
+        stopped = self._stopped
+        self._power.set_label("▶ Start" if stopped else "◼ Stop")
+        try:
+            self._entry.set_sensitive(not stopped)
+            self._entry.set_placeholder_text(
+                "Atlas is stopped — press Start" if stopped
+                else "Ask Atlas about this terminal…")
+        except Exception:
+            pass
+        try:
+            state = "stopped" if stopped else "watching this session"
+            self._title.set_markup(
+                "<b>Sysible Atlas</b>  <span alpha='55%'>· " + state + "</span>")
+        except Exception:
+            pass
+        try:
+            ctx = self._dot.get_style_context()
+            (ctx.add_class if stopped else ctx.remove_class)("atlas-dot-off")
+        except Exception:
+            pass
 
     def _refresh_model_combo(self, models):
         combo = self._model_combo
@@ -942,7 +1011,7 @@ class AtlasPanel(Gtk.Box):
         foot.pack_end(hint("⌥K Ask", "Ask about this terminal",
                            self.focus_ask), False, False, 0)
         foot.pack_end(hint("⌥A Analyze", "Explain the focused terminal's last output",
-                           lambda: self.on_analyze and self.on_analyze()),
+                           self._analyze_clicked),
                       False, False, 0)
         return foot
 
@@ -1110,10 +1179,18 @@ class AtlasPanel(Gtk.Box):
         self._entry.grab_focus()
 
     def _on_ask_activate(self, *_):
+        if self._stopped:
+            return
         q = self._entry.get_text().strip()
         if q and self.on_ask:
             self._entry.set_text("")
             self.on_ask(q)
+
+    def _analyze_clicked(self):
+        if self._stopped:
+            return
+        if self.on_analyze:
+            self.on_analyze()
 
     # ----- streaming a card ------------------------------------------------
     def start_card(self, kind, title, subtitle, messages, run_target="terminal",

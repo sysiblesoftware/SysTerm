@@ -27,6 +27,7 @@ _CSS = b"""
     padding: 10px 12px; background: #0b1017; border-bottom: 1px solid #1c2430;
 }
 .atlas-dot { color: #6ddb73; }
+.atlas-dot-off { color: #6a7480; }
 .atlas-header label { color: #dfeee6; font-size: 12.5px; }
 /* Model selector pill on the right of the header (local + installed models). */
 .atlas-badge {

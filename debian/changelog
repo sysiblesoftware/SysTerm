@@ -1,3 +1,15 @@
+systerm (0.2.39) unstable; urgency=medium
+
+  * Atlas: add a visible Start / Stop toggle in the pane header. Stop unloads
+    the local model (frees the RAM/CPU it holds) and puts Atlas fully idle — it
+    stops answering, disables the ask box, and no longer reacts to failed
+    commands; Start brings it back. A discoverable off-switch instead of editing
+    config.ini.
+  * Atlas: the header close control now reads "Hide" instead of "✕" (clearer
+    that it hides the pane, not the window).
+
+ -- Sysible <maintainers@sysible.com>  Wed, 12 Aug 2026 19:39:13 +0000
+
 systerm (0.2.38) unstable; urgency=medium
 
   * Titlebar icon: load the installed icon FILE first instead of the themed
