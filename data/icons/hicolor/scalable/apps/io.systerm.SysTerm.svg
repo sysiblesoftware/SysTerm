@@ -1,23 +1,20 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+<!--
+  SysTerm app/dock icon — Sysible SES brand (2026 rebrand).
+  Dark rounded tile + thin GREEN RING (#6ddb73) + a ">" terminal prompt with a
+  green cursor block. No hexagon. Font-free (pure paths) so it rasterises
+  identically everywhere. Regenerate the PNG sizes with cairosvg after editing.
+-->
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="256" viewBox="0 0 256 256">
   <defs>
-    <!-- Sysible brand blue (#79a0ff) for the hexagon frame, matching the logo. -->
-    <linearGradient id="edge" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#79a0ff"/>
-      <stop offset="1" stop-color="#2f4d9e"/>
-    </linearGradient>
-    <linearGradient id="screen" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#101828"/>
-      <stop offset="1" stop-color="#0a0f1c"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#18202c"/>
+      <stop offset="1" stop-color="#0b0e15"/>
     </linearGradient>
   </defs>
-  <!-- Sysible hexagon as a terminal screen. -->
-  <path d="M64 9 L111 36.5 L111 91.5 L64 119 L17 91.5 L17 36.5 Z"
-        fill="url(#screen)" stroke="url(#edge)" stroke-width="5" stroke-linejoin="miter"/>
-  <!-- The universal terminal prompt: >_  — green chevron (#6ddb73) + BLUE underscore
-       cursor (#79a0ff), matching the Sysible brand family accent (green symbol,
-       blue accent). Blue frame + green ">" + blue "_" = logo palette. -->
-  <path d="M40 46 L59 64 L40 82" fill="none" stroke="#6ddb73"
-        stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>
-  <rect x="65" y="76" width="27" height="8" rx="4" fill="#79a0ff"/>
+  <rect x="10" y="10" width="236" height="236" rx="52" fill="url(#tile)"/>
+  <rect x="10" y="10" width="236" height="236" rx="52" fill="none" stroke="#6ddb73" stroke-width="6"/>
+  <polyline points="92,94 134,128 92,162" fill="none" stroke="#eceff3"
+            stroke-width="17" stroke-linecap="round" stroke-linejoin="round"/>
+  <rect x="150" y="150" width="46" height="15" rx="4" fill="#6ddb73"/>
 </svg>

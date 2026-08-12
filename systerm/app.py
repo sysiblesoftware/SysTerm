@@ -26,7 +26,7 @@ _CSS = b"""
 .atlas-header {
     padding: 10px 12px; background: #0b1017; border-bottom: 1px solid #1c2430;
 }
-.atlas-dot { color: #5cc746; }
+.atlas-dot { color: #6ddb73; }
 .atlas-header label { color: #dfeee6; font-size: 12.5px; }
 /* Model selector pill on the right of the header (local + installed models). */
 .atlas-badge {
@@ -39,15 +39,15 @@ _CSS = b"""
     text-shadow: none; font-family: monospace; font-size: 11.5px; min-height: 0;
     padding: 0 2px;
 }
-.atlas-model button:hover { background: rgba(92,199,70,.12); border-radius: 5px; }
+.atlas-model button:hover { background: rgba(109,219,115,.12); border-radius: 5px; }
 .atlas-model cellview { color: #cfe6c4; }
 .atlas-ghost, .atlas-run {
-    background: #0b1119; color: #7ed268; border: 1px solid rgba(92,199,70,.40);
+    background: #0b1119; color: #8ae88f; border: 1px solid rgba(109,219,115,.40);
     border-radius: 7px; padding: 3px 10px; font-size: 12px; box-shadow: none;
     text-shadow: none;
 }
 .atlas-ghost { color: #8ea1b8; border-color: #263041; }
-.atlas-ghost:hover, .atlas-run:hover { background: rgba(92,199,70,.10); }
+.atlas-ghost:hover, .atlas-run:hover { background: rgba(109,219,115,.10); }
 .atlas-close { color: #8ea1b8; padding: 3px 8px; font-size: 13px; }
 .atlas-close:hover { background: rgba(229,72,77,.14); color: #e5a0a2; border-color: rgba(229,72,77,.40); }
 .atlas-card {
@@ -55,7 +55,7 @@ _CSS = b"""
     padding: 11px 13px; border-left: 3px solid #263041;
 }
 .atlas-card-err { border-left-color: #e5484d; }
-.atlas-card-ans { border-left-color: #5cc746; }
+.atlas-card-ans { border-left-color: #6ddb73; }
 .atlas-card-title {
     color: #e7eef6; font-size: 12.5px; font-weight: bold; letter-spacing: .2px;
 }
@@ -92,7 +92,7 @@ _CSS = b"""
 }
 .atlas-ask entry {
     background: #0c121a; color: #dbe6f2; border: 1px solid #263041;
-    border-radius: 7px; caret-color: #5cc746;
+    border-radius: 7px; caret-color: #6ddb73;
 }
 .atlas-footer {
     padding: 6px 12px; background: #0a0e15; border-top: 1px solid #1c2430;
@@ -105,7 +105,7 @@ _CSS = b"""
     color: #7d8aa0; padding: 1px 6px; font-family: monospace; font-size: 11px;
     min-height: 0;
 }
-.atlas-hint:hover { color: #7ed268; background: rgba(92,199,70,.08); border-radius: 5px; }
+.atlas-hint:hover { color: #8ae88f; background: rgba(109,219,115,.08); border-radius: 5px; }
 """
 
 

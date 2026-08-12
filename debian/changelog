@@ -1,3 +1,13 @@
+systerm (0.2.34) unstable; urgency=medium
+
+  * Rebrand to the Sysible SES identity: new app/dock icon — dark rounded
+    tile + thin green ring (#6ddb73) + a ">" terminal prompt with a green
+    cursor; the hexagon mark is retired. Regenerated all hicolor PNG sizes
+    from the new font-free SVG. Reconciled the Atlas companion accent to the
+    brand green #6ddb73.
+
+ -- Sysible <dev@sysible.io>  Wed, 12 Aug 2026 02:59:19 +0000
+
 systerm (0.2.33) unstable; urgency=medium
 
   * Atlas: fix the first-launch layout — the companion opened taking ~2/3 of
