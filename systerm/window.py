@@ -68,6 +68,8 @@ class SysTermWindow(Gtk.ApplicationWindow):
         # feature: if it can't be created (sandboxed /tmp, no mkfifo), we still
         # want the pane and its menu entry, just without hands-free auto-catch.
         try:
+            if not _atlas.atlas_enabled():
+                raise RuntimeError("disabled by config ([atlas] enabled = no)")
             self._atlas_client = _atlas.AtlasClient()
             self._atlas = _atlas.AtlasPanel(self._atlas_client)
             self._atlas.on_ask = self._atlas_ask

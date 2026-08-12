@@ -189,6 +189,8 @@ Failed services = systemctl --failed
 # provider. Put the key here (or set SYSIBLE_ANTHROPIC_API_KEY / SYSIBLE_OPENAI_API_KEY
 # in the environment). Uncomment and fill in to enable:
 # [atlas]
+# enabled = yes          # "no" runs SysTerm with NO Atlas at all (plain terminal, zero footprint)
+# keep_alive = 30s       # how long the local model stays loaded after a reply (e.g. 10m; "0" = unload now)
 # anthropic_api_key =
 # openai_api_key =
 """

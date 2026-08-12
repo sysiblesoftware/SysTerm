@@ -80,6 +80,33 @@ CLOUD = {
 }
 
 
+def atlas_conf(key, fallback=None):
+    """Read a value from the [atlas] section of ~/.config/systerm/config.ini."""
+    try:
+        import configparser
+        from .config import CONFIG_PATH
+        cp = configparser.ConfigParser()
+        cp.read(CONFIG_PATH)
+        v = cp.get("atlas", key, fallback=None)
+        return v if v is not None else fallback
+    except Exception:
+        return fallback
+
+
+def atlas_enabled():
+    """Is the Atlas companion turned on? Default yes. Set `enabled = no` in the
+    [atlas] config section to run SysTerm with NO Atlas at all — no model client,
+    no watcher, no pane, zero footprint (a plain terminal). Env override:
+    SYSIBLE_ATLAS=0/off/no."""
+    env = (os.environ.get("SYSIBLE_ATLAS") or "").strip().lower()
+    if env in ("0", "off", "no", "false"):
+        return False
+    if env in ("1", "on", "yes", "true"):
+        return True
+    v = (atlas_conf("enabled", "yes") or "yes").strip().lower()
+    return v not in ("no", "off", "0", "false")
+
+
 def cloud_key(provider):
     """Resolve a provider's API key: environment first, then the [atlas] section
     of ~/.config/systerm/config.ini. Returns None if neither is set."""
@@ -294,8 +321,11 @@ class AtlasClient:
             max_tokens = 350
         payload = {
             "model": self.model, "messages": messages, "stream": True,
-            # Keep the model resident so the SECOND ask onward is fast (no reload).
-            "keep_alive": os.environ.get("SYSIBLE_AI_KEEP_ALIVE") or "10m",
+            # How long Ollama keeps the model resident after a reply. Short by
+            # default so an idle Atlas doesn't hold RAM/CPU — a quick follow-up is
+            # still warm, but walking away frees the model. Override with
+            # [atlas] keep_alive = 10m (or "0" to unload immediately).
+            "keep_alive": os.environ.get("SYSIBLE_AI_KEEP_ALIVE") or atlas_conf("keep_alive", "30s"),
             "options": {"temperature": 0.2, "top_p": 0.9, "num_predict": max_tokens},
         }
 

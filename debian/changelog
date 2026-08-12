@@ -1,3 +1,14 @@
+systerm (0.2.36) unstable; urgency=medium
+
+  * Atlas: make it a tool you turn on when you want, not a background load.
+    - keep_alive default 10m -> 30s so an idle Atlas releases the model
+      (RAM/CPU) instead of holding it; configurable via [atlas] keep_alive
+      (e.g. 10m, or 0 to unload immediately) / SYSIBLE_AI_KEEP_ALIVE.
+    - New off switch: [atlas] enabled = no (or SYSIBLE_ATLAS=0) runs SysTerm
+      as a plain terminal with NO Atlas client, watcher, or pane.
+
+ -- Sysible <dev@sysible.io>  Wed, 12 Aug 2026 13:17:17 +0000
+
 systerm (0.2.35) unstable; urgency=medium
 
   * Atlas: make the setup options fully visible in the narrow companion
