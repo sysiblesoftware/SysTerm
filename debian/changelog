@@ -1,3 +1,13 @@
+systerm (0.2.40) unstable; urgency=medium
+
+  * Atlas setup: add a "Reinstall Ollama" button. A present-but-broken ("borked")
+    install was detected as installed, so the panel showed "✓ Ollama installed"
+    with no repair path. The button now appears whenever the binary is detected —
+    prominently when the server won't start — and re-runs the official installer
+    to repair the install in place.
+
+ -- Sysible <maintainers@sysible.com>  Wed, 12 Aug 2026 22:45:00 +0000
+
 systerm (0.2.39) unstable; urgency=medium
 
   * Atlas: add a visible Start / Stop toggle in the pane header. Stop unloads

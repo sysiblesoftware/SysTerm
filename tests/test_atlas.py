@@ -35,6 +35,30 @@ def test_no_percent_format_over_literal_percent_markup():
         % offenders)
 
 
+def test_reinstall_affordance_present_for_borked_install():
+    """A detected-but-broken Ollama install must offer a Reinstall action — the
+    setup panel otherwise says "installed" with no repair path. Guarded by AST
+    (no gi needed): the panel defines the installer one-liner and wires a
+    "Reinstall Ollama" button to it."""
+    with open(ATLAS, encoding="utf-8") as fh:
+        src = fh.read()
+    tree = ast.parse(src, filename=ATLAS)
+    # The install/repair one-liner is defined once and reused.
+    install_consts = [
+        n.value.value
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "OLLAMA_INSTALL" for t in n.targets)
+        and isinstance(n.value, ast.Constant) and isinstance(n.value.value, str)
+    ]
+    assert install_consts and "install.sh" in install_consts[0], (
+        "OLLAMA_INSTALL must define the ollama.com installer one-liner")
+    # The reinstall button exists and runs that command.
+    assert "Reinstall Ollama" in src, "no Reinstall Ollama button in the setup panel"
+    assert "self.OLLAMA_INSTALL, ghost=True" in src, (
+        "Reinstall button should reuse OLLAMA_INSTALL as a secondary (ghost) action")
+
+
 def test_pick_model_prefers_available():
     # pick_model is pure logic, but importing the module pulls in gi — skip where
     # the GTK bindings aren't installed (the AST scan above needs no gi).

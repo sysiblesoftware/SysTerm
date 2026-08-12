@@ -1056,6 +1056,8 @@ class AtlasPanel(Gtk.Box):
         self._refresh_footer()
 
     # ----- first-run setup (install Ollama + download a model) -------------
+    # The official one-liner both installs fresh and reinstalls/repairs in place.
+    OLLAMA_INSTALL = "curl -fsSL https://ollama.com/install.sh | sh"
     PULLS = [
         ("qwen2.5-coder:7b", "code · ~4.7 GB · best default"),
         ("llama3.2:3b", "general · ~2 GB · light"),
@@ -1090,9 +1092,12 @@ class AtlasPanel(Gtk.Box):
         lab.set_markup(markup)
         return lab
 
-    def _setup_button(self, label, cmd):
+    def _setup_button(self, label, cmd, ghost=False):
         b = Gtk.Button(label=label)
-        b.get_style_context().add_class("atlas-run")
+        # Primary actions (Install / Start) are green "atlas-run"; secondary
+        # repair actions (Reinstall) use the quieter "atlas-ghost" so they're
+        # discoverable without competing with the happy-path button.
+        b.get_style_context().add_class("atlas-ghost" if ghost else "atlas-run")
         b.set_halign(Gtk.Align.START)
         b.connect("clicked", lambda _w, c=cmd: self.on_run and self.on_run(c))
         return b
@@ -1143,8 +1148,8 @@ class AtlasPanel(Gtk.Box):
             s.pack_start(self._setup_row("✓  <b>Ollama</b> installed"), False, False, 0)
         else:
             s.pack_start(self._setup_row("✗  <b>Ollama</b> not installed"), False, False, 0)
-            s.pack_start(self._setup_button("Install Ollama",
-                         "curl -fsSL https://ollama.com/install.sh | sh"), False, False, 0)
+            s.pack_start(self._setup_button("Install Ollama", self.OLLAMA_INSTALL),
+                         False, False, 0)
 
         if state["server"]:
             s.pack_start(self._setup_row("✓  model server running"), False, False, 0)
@@ -1152,6 +1157,18 @@ class AtlasPanel(Gtk.Box):
             s.pack_start(self._setup_row("✗  model server not running"), False, False, 0)
             s.pack_start(self._setup_button("Start Ollama",
                          "sudo systemctl start ollama || ollama serve &"), False, False, 0)
+
+        # A detected-but-broken ("borked") install shows "✓ installed" above and
+        # otherwise has no repair path — re-running the official installer
+        # reinstalls/repairs in place. Offer it whenever the binary is present;
+        # make it the obvious next step when the server won't come up.
+        if state["binary"]:
+            hint = ("<span alpha='60%'>Ollama installed but not working? "
+                    "Reinstall to repair it:</span>") if not state["server"] else \
+                   "<span alpha='60%'>Reinstall Ollama (repair a broken install):</span>"
+            s.pack_start(self._setup_row(hint), False, False, 0)
+            s.pack_start(self._setup_button("↻  Reinstall Ollama",
+                         self.OLLAMA_INSTALL, ghost=True), False, False, 0)
 
         if state["models"]:
             names = ", ".join(GLib.markup_escape_text(m) for m in state["models"])
