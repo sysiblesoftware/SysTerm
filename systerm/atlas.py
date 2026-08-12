@@ -763,6 +763,26 @@ class AtlasPanel(Gtk.Box):
         # the next ask target a model that's actually installed.
         self.connect("map", lambda *_: self.refresh_setup())
 
+    # Atlas is a COMPANION, never the main view — on first launch the terminal
+    # must keep the bulk of the window. GtkPaned seeds its first divider position
+    # from the child's NATURAL width, and a Gtk.Box's natural width is the widest
+    # of ALL its children — here the footer row ("● local · Ollama · … Analyze
+    # Ask Clear Setup") and the header, not just the cards. Capping the inner
+    # card-scroller alone (below) therefore never bounded the panel: the footer
+    # still reported ~700px and Atlas opened at ~2/3 of the window.
+    #
+    # Clamp the WHOLE panel's natural width here — the single place no wide child
+    # can escape. We keep the real MINIMUM (so nothing is ever clipped / no GTK
+    # under-allocation warnings) and only pull the NATURAL down to a sidebar
+    # width. Result: a narrow sidebar by construction, on every GTK version, with
+    # no divider-timing hacks. The user can still drag it wider (the slot is
+    # shrink=True/resize handling in window.py); this governs the initial split.
+    SIDEBAR_NATURAL = 400
+
+    def do_get_preferred_width(self):
+        min_w, nat_w = Gtk.Box.do_get_preferred_width(self)
+        return (min_w, max(min_w, min(nat_w, self.SIDEBAR_NATURAL)))
+
     # ----- chrome ----------------------------------------------------------
     def _build_header(self):
         head = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=9)
@@ -773,7 +793,12 @@ class AtlasPanel(Gtk.Box):
         title = Gtk.Label(xalign=0.0)
         title.set_markup(
             "<b>Sysible Atlas</b>  <span alpha='55%'>· watching this session</span>")
-        head.pack_start(title, False, False, 0)
+        # Expand+ellipsize: the title takes the slack when the sidebar is wide, but
+        # collapses gracefully when narrow instead of forcing a wide panel MINIMUM
+        # (its natural is ~230px). Without this the header pins the panel min near
+        # 530px and the sidebar clamp can't take effect.
+        title.set_ellipsize(Pango.EllipsizeMode.END)
+        head.pack_start(title, True, True, 0)
         # Close (hide) the pane. Hiding keeps the widget alive, so every card and
         # the whole conversation history is preserved — reopening (Alt+A, the
         # right-click entry, or a caught error) shows exactly where you left off.
@@ -866,6 +891,10 @@ class AtlasPanel(Gtk.Box):
         # Left: where the model runs + the privacy promise. Kept as a ref so the
         # model name refreshes when we auto-select a downloaded model.
         self._footer_left = Gtk.Label(xalign=0.0)
+        # Ellipsize so this status line never forces a wide panel MINIMUM (it can
+        # read "● local · Ollama · qwen2.5-coder:7b · nothing leaves this machine",
+        # ~600px). With a small min, the sidebar clamp above is free to stay narrow.
+        self._footer_left.set_ellipsize(Pango.EllipsizeMode.END)
         self._refresh_footer()
         foot.pack_start(self._footer_left, False, False, 0)
         # Right: the action hints (clickable), mockup-style. These carry the

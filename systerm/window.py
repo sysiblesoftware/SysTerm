@@ -116,7 +116,16 @@ class SysTermWindow(Gtk.ApplicationWindow):
             # ever launched, so new users are walked through installing Ollama and
             # downloading a model; collapsed by default thereafter.
             if self._first_run():
-                GLib.idle_add(self._show_atlas)
+                # Show the companion and pin the divider on the FIRST real
+                # allocation. idle_add fires BEFORE the window is sized (alloc
+                # width == 1 then), so any set_position there is a silent no-op —
+                # the old bug that let GtkPaned fall back to natural-size guessing
+                # and open Atlas at ~2/3 width. The panel's natural width is now
+                # clamped (AtlasPanel.do_get_preferred_width), so the split is a
+                # sidebar by construction; this pins it to the exact width too.
+                self._atlas.show()
+                self._atlas_first_placed = False
+                self._atlas_paned.connect("size-allocate", self._place_atlas_first_run)
             else:
                 GLib.idle_add(self._atlas.hide)
 
@@ -628,6 +637,25 @@ class SysTermWindow(Gtk.ApplicationWindow):
         alloc = self._atlas_paned.get_allocation()
         if alloc.width > 1:
             self._atlas_paned.set_position(max(200, alloc.width - self._atlas_width))
+
+    def _place_atlas_first_run(self, paned, alloc):
+        """One-shot: on the first real allocation, park the divider so Atlas is a
+        fixed-width sidebar and the terminal keeps the rest. Runs exactly once,
+        then disconnects so it never overrides the user's later drags."""
+        if getattr(self, "_atlas_first_placed", True) or alloc.width <= 1:
+            return
+        self._atlas_first_placed = True
+        paned.set_position(max(200, alloc.width - self._atlas_width))
+        # Disconnect after this emission settles (avoids re-entrancy on the
+        # reallocation our own set_position triggers).
+        GLib.idle_add(self._disconnect_first_run, paned)
+
+    def _disconnect_first_run(self, paned):
+        try:
+            paned.disconnect_by_func(self._place_atlas_first_run)
+        except (TypeError, RuntimeError):
+            pass
+        return False
 
     def _remember_atlas_width(self, paned, _param):
         """Record the width the user drags Atlas to, so it persists across

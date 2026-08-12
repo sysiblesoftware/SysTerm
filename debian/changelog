@@ -1,3 +1,17 @@
+systerm (0.2.33) unstable; urgency=medium
+
+  * Atlas: fix the first-launch layout — the companion opened taking ~2/3 of
+    the window instead of as a right-hand sidebar. The panel's natural width
+    was driven by its footer status line and header (the widest children of
+    the vertical box), so capping only the inner card-scroller never bounded
+    it. Clamp the whole panel's natural width at the panel level
+    (do_get_preferred_width), ellipsize the footer/header so they don't force a
+    wide minimum, and pin the divider on the first real allocation (idle_add
+    fired before the window was sized, making the old set_position a no-op).
+    Added regression tests so the sidebar can't silently balloon again.
+
+ -- Sysible <dev@sysible.io>  Wed, 12 Aug 2026 01:59:13 +0000
+
 systerm (0.2.32) unstable; urgency=medium
 
   * Atlas: optional cloud models. The model selector now offers "☁ Claude"

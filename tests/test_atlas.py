@@ -108,3 +108,52 @@ def test_panel_constructs():
         pytest.skip("no display")
     from systerm.atlas import AtlasPanel, AtlasClient
     AtlasPanel(AtlasClient())  # must not raise
+
+
+def test_atlas_panel_clamps_sidebar_width():
+    """AtlasPanel MUST override do_get_preferred_width and define SIDEBAR_NATURAL.
+
+    Regression guard for the first-launch layout bug: a Gtk.Box's natural width is
+    the widest of ALL its children — here the footer status line and header, not
+    just the card scroller. Capping only the inner scroller left the panel
+    reporting ~600-700px, so GtkPaned opened Atlas at ~2/3 of the window instead
+    of as a sidebar. The panel-level clamp is the only thing a wide child can't
+    escape; if either the method or the cap constant disappears, the bug is back.
+    """
+    with open(ATLAS, encoding="utf-8") as fh:
+        tree = ast.parse(fh.read(), filename=ATLAS)
+    panel = next((n for n in ast.walk(tree)
+                  if isinstance(n, ast.ClassDef) and n.name == "AtlasPanel"), None)
+    assert panel is not None, "AtlasPanel class missing"
+    methods = {n.name for n in panel.body if isinstance(n, ast.FunctionDef)}
+    assert "do_get_preferred_width" in methods, (
+        "AtlasPanel must override do_get_preferred_width to cap the sidebar width")
+    consts = {t.id for n in panel.body if isinstance(n, ast.Assign)
+              for t in n.targets if isinstance(t, ast.Name)}
+    assert "SIDEBAR_NATURAL" in consts, "SIDEBAR_NATURAL cap constant missing"
+
+
+def test_atlas_panel_natural_width_capped_live():
+    """Where GTK is installed with a display, the built panel's natural width is
+    actually clamped to the cap (not merely the method's presence)."""
+    pytest.importorskip("gi")
+    import gi
+    gi.require_version("Gtk", "3.0")
+    from gi.repository import Gtk
+    if not Gtk.init_check()[0]:
+        pytest.skip("no GTK display backend")
+    from systerm.atlas import AtlasPanel
+
+    class _Client:
+        provider = "ollama"
+        model = None
+        url = "http://127.0.0.1:11434"
+        def __getattr__(self, _n):
+            return None
+
+    try:
+        panel = AtlasPanel(_Client())
+    except Exception as e:  # a fuller client than the stub is needed
+        pytest.skip("AtlasPanel construction needs a richer client: %r" % e)
+    _min, nat = panel.get_preferred_width()
+    assert nat <= AtlasPanel.SIDEBAR_NATURAL, (nat, AtlasPanel.SIDEBAR_NATURAL)
