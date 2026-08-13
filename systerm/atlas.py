@@ -1015,6 +1015,16 @@ class AtlasPanel(Gtk.Box):
             self._client.model = mdl
         self._client.pinned = True   # honor this until they pick again
         self._refresh_footer()
+        # Picked a ☁ cloud model but no key is configured yet → open the Setup
+        # card and focus that provider's key field, so entering credentials is
+        # the obvious next step (rather than a silent failure when you Ask).
+        if prov in CLOUD and cloud_key(prov) is None:
+            self.show_setup()
+            try:
+                entry, _stat = self._key_rows[prov]
+                entry.grab_focus()
+            except Exception:
+                pass
 
     def _build_ask(self):
         row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)

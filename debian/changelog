@@ -1,3 +1,12 @@
+systerm (0.2.42) unstable; urgency=medium
+
+  * Atlas: make the cloud key entry discoverable. Picking a ☁ Claude / GPT model
+    in the selector now opens the Setup card and focuses that provider's key
+    field, instead of only surfacing the entry inside the (easily-missed) Setup
+    card or failing silently on Ask.
+
+ -- Sysible <maintainers@sysible.com>  Thu, 13 Aug 2026 03:20:00 +0000
+
 systerm (0.2.41) unstable; urgency=medium
 
   * Atlas setup: add a "Cloud models" section to paste a Claude / GPT API key,
