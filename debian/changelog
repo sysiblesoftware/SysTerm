@@ -1,3 +1,15 @@
+systerm (0.2.43) unstable; urgency=medium
+
+  * Atlas: cards are now dismissable. Answer/error cards get a ✕ to close just
+    that card; the Setup card gets a ✕ too and is re-opened any time from the
+    footer "Setup" button (nothing typed is lost — it's kept alive).
+  * Atlas: a "Review before running" caution now sits under each suggested
+    command's Run button (commands are model-generated and never auto-run).
+  * Security: config.ini (which can hold cloud API keys) is created private from
+    birth — dir 0700, file 0600 — and a pre-existing 0644 file is tightened.
+
+ -- Sysible <maintainers@sysible.com>  Thu, 13 Aug 2026 12:30:00 +0000
+
 systerm (0.2.42) unstable; urgency=medium
 
   * Atlas: make the cloud key entry discoverable. Picking a ☁ Claude / GPT model

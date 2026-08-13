@@ -665,6 +665,15 @@ class AtlasCard(Gtk.Box):
         self._spinner = Gtk.Spinner()
         head.pack_start(self._spinner, False, False, 0)
         self._spinner.start()
+        # Dismiss (✕) this card — closes just this answer/error. Rightmost in the
+        # header. The whole set can be cleared from the footer "Clear"; the Setup
+        # card is re-openable from the footer "Setup".
+        dismiss = Gtk.Button(label="✕")
+        dismiss.get_style_context().add_class("atlas-ghost")
+        dismiss.get_style_context().add_class("atlas-close")
+        dismiss.set_tooltip_text("Dismiss this card")
+        dismiss.connect("clicked", lambda *_: self.destroy())
+        head.pack_end(dismiss, False, False, 0)
         if subtitle:
             sub = Gtk.Label(xalign=1.0, label=subtitle,
                             ellipsize=Pango.EllipsizeMode.MIDDLE)
@@ -787,6 +796,14 @@ class AtlasCard(Gtk.Box):
             copy.connect("clicked", lambda *_: self._copy(joined))
             act.pack_start(copy, False, False, 0)
             self.pack_start(act, False, False, 0)
+            # Suggested commands are model-generated (and a cloud model or crafted
+            # terminal output can influence them) — nothing runs until you click,
+            # so remind the user to read it first. Never auto-run.
+            caution = Gtk.Label(xalign=0.0, wrap=True)
+            caution.get_style_context().add_class("atlas-prose")
+            caution.set_markup("<span alpha='55%' size='small'>Review before running"
+                               " — this command was suggested by the model.</span>")
+            self.pack_start(caution, False, False, 0)
 
     def _copy(self, text):
         try:
@@ -1122,10 +1139,19 @@ class AtlasPanel(Gtk.Box):
     def _build_setup(self):
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         box.get_style_context().add_class("atlas-card")
+        thead = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         title = Gtk.Label(xalign=0.0)
         title.set_markup("<b>Set up Sysible Atlas</b>")
         title.get_style_context().add_class("atlas-card-title")
-        box.pack_start(title, False, False, 0)
+        thead.pack_start(title, True, True, 0)
+        # Dismiss the Setup card — reopen it any time from the footer "Setup".
+        sdismiss = Gtk.Button(label="✕")
+        sdismiss.get_style_context().add_class("atlas-ghost")
+        sdismiss.get_style_context().add_class("atlas-close")
+        sdismiss.set_tooltip_text("Close setup — reopen from “Setup” in the footer")
+        sdismiss.connect("clicked", lambda *_: self.hide_setup())
+        thead.pack_end(sdismiss, False, False, 0)
+        box.pack_start(thead, False, False, 0)
         intro = Gtk.Label(
             xalign=0.0, wrap=True,
             label="Atlas runs on a LOCAL model — set one up once. Buttons run in "
@@ -1335,6 +1361,13 @@ class AtlasPanel(Gtk.Box):
             self._cards.reorder_child(self._setup, 0)
         self._setup.show_all()
         self.refresh_setup()
+
+    def hide_setup(self):
+        """Dismiss the Setup card (the ✕ on it). Kept alive and re-openable from
+        the footer 'Setup' button, so nothing typed (e.g. a half-entered key) is
+        lost — it's just removed from view."""
+        if self._setup in self._cards.get_children():
+            self._cards.remove(self._setup)
 
     def focus_ask(self):
         self._entry.grab_focus()

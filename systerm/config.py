@@ -197,11 +197,20 @@ Failed services = systemctl --failed
 
 
 def ensure_default_config():
-    """Write a commented default config on first run so there's something to edit."""
+    """Write a commented default config on first run so there's something to edit.
+    The file can hold cloud API keys (the [atlas] section), so create the dir and
+    file PRIVATE from birth (0700 / 0600) — never world-readable."""
     try:
         if not os.path.exists(CONFIG_PATH):
-            os.makedirs(CONFIG_DIR, exist_ok=True)
-            with open(CONFIG_PATH, "w", encoding="utf-8") as f:
+            os.makedirs(CONFIG_DIR, mode=0o700, exist_ok=True)
+            # Open with 0600 from the start (umask-independent) so a key pasted in
+            # later never sits in a 0644 file even briefly.
+            fd = os.open(CONFIG_PATH, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
                 f.write(DEFAULT_CONFIG_TEXT)
+        try:
+            os.chmod(CONFIG_PATH, 0o600)   # tighten a pre-existing 0644 file too
+        except OSError:
+            pass
     except OSError:
         pass
