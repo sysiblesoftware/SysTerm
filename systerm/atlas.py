@@ -247,6 +247,53 @@ class AtlasClient:
         # the connection ("Remote end closed connection without response") even
         # though the server is running fine. An empty ProxyHandler disables that.
         self._opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+        # Cache of downloaded model names, so a request doesn't re-list /api/tags
+        # over HTTP before every question (that round-trip — with its retry/backoff
+        # when the server is momentarily slow — was added latency on the hot path).
+        # Short TTL: models rarely change mid-session, and probe()/the selector
+        # refresh it. See _cached_models().
+        self._models_cache = None
+        self._models_cache_ts = 0.0
+
+    def _cache_models(self, models):
+        if models:
+            self._models_cache = models
+            self._models_cache_ts = time.time()
+
+    def _cached_models(self, max_age=60):
+        """Downloaded models, served from a short-lived cache to keep the request
+        hot path off a synchronous /api/tags round-trip. On a cache miss it lists
+        once and caches; a transient empty/failed list falls back to the last known
+        good list rather than wiping it mid-session."""
+        if self._models_cache is not None and (time.time() - self._models_cache_ts) < max_age:
+            return self._models_cache
+        models = self.list_models()
+        if models:
+            self._cache_models(models)
+            return models
+        return self._models_cache if self._models_cache is not None else models
+
+    def warm(self, model=None):
+        """Preload the local model into RAM ahead of the first question so it isn't
+        delayed by a cold load. Ollama loads (and keeps, per keep_alive) a model on
+        any request; sending /api/generate with no prompt loads it without
+        generating. Best-effort, backgrounded; a no-op for cloud providers."""
+        if self.provider in CLOUD:
+            return
+        m = model or self.model
+        if not m:
+            return
+        ka = os.environ.get("SYSIBLE_AI_KEEP_ALIVE") or atlas_conf("keep_alive", "30m")
+        def work():
+            try:
+                body = json.dumps({"model": m, "keep_alive": ka}).encode()
+                req = urllib.request.Request(
+                    self.url + "/api/generate", data=body,
+                    headers={"Content-Type": "application/json"}, method="POST")
+                self._opener.open(req, timeout=120).read()
+            except Exception:
+                pass
+        threading.Thread(target=work, daemon=True).start()
 
     def pick_model(self, models):
         """Point the client at a model that's actually downloaded. Prefer the
@@ -285,6 +332,7 @@ class AtlasClient:
                  "/opt/ollama/ollama", os.path.expanduser("~/.local/bin/ollama")))
             # Retrying list — tolerant of a just-restarted / hydrating server.
             models = self.list_models()
+            self._cache_models(models)   # seed the cache so the first question skips /api/tags
             server = bool(models)
             if not server:
                 # No models listed — is the server up-but-empty, or unreachable?
@@ -298,6 +346,16 @@ class AtlasClient:
             # regardless of what `which`/paths said.
             if server or models:
                 binary = True
+            # Pre-warm: load the model into RAM now (panel open), off the main
+            # thread, so the user's FIRST question isn't a multi-second cold load.
+            # Only when local Ollama is the provider and a model is installed.
+            if models and self.provider not in CLOUD:
+                try:
+                    if not (self.pinned and self.model in models):
+                        self.pick_model(models)
+                    self.warm()
+                except Exception:
+                    pass
             GLib.idle_add(callback, {"binary": binary, "server": server, "models": models})
         threading.Thread(target=work, daemon=True).start()
 
@@ -337,7 +395,7 @@ class AtlasClient:
         enabled, hangs or closes the connection). Returns the model list so the
         caller can decide what to do when nothing is installed. A model the user
         pinned via the selector is kept as long as it's still installed."""
-        models = self.list_models()
+        models = self._cached_models()
         if models and not (self.pinned and self.model in models):
             self.pick_model(models)
         return models
@@ -384,11 +442,15 @@ class AtlasClient:
             max_tokens = 350
         payload = {
             "model": self.model, "messages": messages, "stream": True,
-            # How long Ollama keeps the model resident after a reply. Short by
-            # default so an idle Atlas doesn't hold RAM/CPU — a quick follow-up is
-            # still warm, but walking away frees the model. Override with
-            # [atlas] keep_alive = 10m (or "0" to unload immediately).
-            "keep_alive": os.environ.get("SYSIBLE_AI_KEEP_ALIVE") or atlas_conf("keep_alive", "30s"),
+            # How long Ollama keeps the model RESIDENT after a reply. This is the
+            # single biggest speed lever: at the old 30s default the model was
+            # evicted between questions, so every follow-up paid a full cold reload
+            # from disk (several seconds on CPU) before it could even start. Keep it
+            # loaded for 30 minutes so back-to-back questions are instant; an idle
+            # model costs RAM but ~no CPU. A resident model is freed on close/unload
+            # or when this elapses. Override with [atlas] keep_alive = 10m (or "0"
+            # to unload immediately, or "-1" to keep it loaded until unloaded).
+            "keep_alive": os.environ.get("SYSIBLE_AI_KEEP_ALIVE") or atlas_conf("keep_alive", "30m"),
             "options": {"temperature": 0.2, "top_p": 0.9, "num_predict": max_tokens},
         }
 
@@ -1030,6 +1092,9 @@ class AtlasPanel(Gtk.Box):
         self._client.provider = prov
         if prov == "ollama":
             self._client.model = mdl
+            # Pre-warm the newly-selected local model so the next question is
+            # instant rather than a cold load (no-op if it's already resident).
+            self._client.warm(mdl)
         self._client.pinned = True   # honor this until they pick again
         self._refresh_footer()
         # Picked a ☁ cloud model but no key is configured yet → open the Setup
