@@ -1,3 +1,18 @@
+systerm (0.3.0) unstable; urgency=medium
+
+  * Remove Sysible Atlas, the AI companion pane. The whole feature is gone: the
+    pane and its model client, the control FIFO and the shell hooks that reported
+    failed commands to it, the Alt+A binding, the right-click entries, the pane
+    CSS, and the [atlas] config section (cloud API keys included). SysTerm is a
+    terminal again.
+  * install.sh no longer installs the shell hook, and uninstall clears the one
+    older versions left in /etc/profile.d, so an upgrade-then-uninstall leaves
+    nothing behind. A stale `toggle-atlas` line in an existing config.ini is
+    simply never looked up — bindings resolve against the action list, so old
+    configs keep working.
+
+ -- Sysible <maintainers@sysible.com>  Thu, 03 Sep 2026 21:30:00 +0000
+
 systerm (0.2.43) unstable; urgency=medium
 
   * Atlas: cards are now dismissable. Answer/error cards get a ✕ to close just

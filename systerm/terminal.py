@@ -19,8 +19,7 @@ def _rgba(spec):
 
 
 class SysTermTerminal(Vte.Terminal):
-    def __init__(self, config, on_exit=None, on_title=None, command=None, cwd=None,
-                 atlas_sock=None):
+    def __init__(self, config, on_exit=None, on_title=None, command=None, cwd=None):
         super().__init__()
         self._config = config
         self._on_exit = on_exit
@@ -30,11 +29,6 @@ class SysTermTerminal(Vte.Terminal):
         self._command = command
         self._cwd = cwd
         self._font_scale = 1.0
-        # Sysible Atlas: a per-pane id + the control FIFO path, exported to the
-        # shell so a failed command / `ai …` question from THIS pane is tagged
-        # back to it (the companion then scrapes this pane's output for context).
-        self.atlas_id = uuid.uuid4().hex
-        self._atlas_sock = atlas_sock
         self.apply_profile(config)
         self.set_scroll_on_output(False)
         self.set_scroll_on_keystroke(True)
@@ -82,9 +76,6 @@ class SysTermTerminal(Vte.Terminal):
         env = dict(os.environ)
         env.setdefault("TERM", "xterm-256color")
         env["SYSTERM"] = "1"
-        if self._atlas_sock:
-            env["SYSIBLE_ATLAS_FIFO"] = self._atlas_sock
-            env["SYSIBLE_ATLAS_ID"] = self.atlas_id
         envv = ["%s=%s" % kv for kv in env.items()]
         self.spawn_async(
             Vte.PtyFlags.DEFAULT,
@@ -162,13 +153,13 @@ class SysTermTerminal(Vte.Terminal):
     def current_title(self):
         return self.get_window_title() or "SysTerm"
 
-    # ----- Atlas: read what's on screen ------------------------------------
+    # ----- read what's on screen ------------------------------------
     def recent_text(self, max_lines=140):
         """Return the last ~max_lines of this pane's buffer as plain text, so the
         companion can read a command's output without any copy-paste. VTE's text
         API changed across versions (get_text_range/get_text were removed around
         VTE 0.72 in favour of *_format), so try the current API first, then the
-        legacy ones — otherwise this silently returns '' on new VTE and Atlas has
+        legacy ones — otherwise this silently returns '' on new VTE and the caller has
         no context to analyse."""
         col = self.get_column_count()
         try:

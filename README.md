@@ -20,7 +20,7 @@ scrollback) is solid — SysTerm adds the tiling, tabs, broadcast, and config.
 ## Install
 
 **Any distro, one line** — installs the runtime deps (GTK3 + VTE), SysTerm, the
-desktop entry + icons, and the Sysible Atlas shell hooks. Works on Debian/Ubuntu,
+and the desktop entry + icons. Works on Debian/Ubuntu,
 Fedora, Arch, and openSUSE:
 
 ```bash
@@ -147,26 +147,6 @@ scrollback_lines = 20000
 [keys]
 toggle-broadcast = <Primary><Shift>a
 ```
-
-## Sysible Atlas — the AI companion pane
-
-A second surface that *reads your session*, powered by a **local** model (Ollama
-by default; nothing leaves the machine). Open it with **Alt+A**.
-
-- **Catches failures** — when a command exits non-zero, Atlas reads that pane's
-  output and explains it (Cause → Fix), no copy-paste. Silence with
-  `SYSIBLE_ATLAS_AUTO=0`.
-- **Ask in the pane** — open Atlas (right-click → **Open Sysible Atlas**, or
-  **Alt+A**) and type in its ask box; the answer streams in. There's also an
-  "Analyze output" button and a right-click "Analyze in Sysible Atlas".
-- **Run its fixes** — every command Atlas suggests gets a *Run in terminal*
-  button that types it into the pane it came from.
-
-Config (shared with `sysible ai`): `SYSIBLE_AI_URL` (default
-`http://127.0.0.1:11434`), `SYSIBLE_AI_MODEL` (default `qwen2.5-coder:7b`),
-`SYSIBLE_AI_BACKEND` (`ollama` | `openai`). The auto-catch and `ai` command need
-SysTerm's shell integration (shipped on Sysible Linux via `/etc/profile.d`); the
-pane's ask box and Analyze button work anywhere.
 
 ## Roadmap
 

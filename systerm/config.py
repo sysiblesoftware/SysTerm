@@ -11,9 +11,9 @@ CONFIG_DIR = os.path.join(
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.ini")
 
 # A 16-colour palette (normal 0-7 then bright 8-15). Green and blue match the
-# Sysible brand / Atlas accent — green #5cc746 (bright #6ddb73), royal blue
+# Sysible brand accent — green #5cc746 (bright #6ddb73), royal blue
 # #3560d4 — so shell prompts that use ANSI green/blue (e.g. the default
-# user@host:path prompt) are the same green as the Atlas pane. Override under
+# user@host:path prompt) use the same green. Override under
 # [profile] palette.
 DEFAULT_PALETTE = [
     "#1a1a1a", "#c25b56", "#5cc746", "#d0a060", "#3560d4", "#a07daf", "#5fa7a7", "#c0c0c0",
@@ -36,7 +36,6 @@ DEFAULT_KEYS = {
     "prev-pane": "<Primary><Shift>Left",
     "zoom-pane": "<Primary><Shift>x",           # toggle: maximise this pane
     "toggle-broadcast": "<Primary><Shift>b",    # type once, send to every pane
-    "toggle-atlas": "<Alt>a",                   # Sysible Atlas AI companion pane
     "zoom-in": "<Primary>plus",
     "zoom-out": "<Primary>minus",
     "zoom-reset": "<Primary>0",
@@ -60,13 +59,13 @@ class Config:
     the app never touches configparser."""
 
     def __init__(self):
-        # Crisp, compact monospace to match the Atlas pane's sharp look (keeps
+        # Crisp, compact monospace for a sharp look (keeps
         # column alignment, unlike a proportional font). Bump with Ctrl++ if you
         # prefer larger.
         self.font = "Monospace 9"
         self.scrollback_lines = 10000
         self.cursor_shape = "block"          # block | ibeam | underline
-        # Cohesive dark-navy backdrop shared with the Atlas pane (no black-vs-blue
+        # Cohesive dark-navy backdrop (no black-vs-blue
         # split): the terminal and the companion read as one surface.
         self.foreground = "#cdd6e3"
         self.background = "#0d1320"
@@ -167,7 +166,6 @@ next-pane = <Primary><Shift>Right
 prev-pane = <Primary><Shift>Left
 zoom-pane = <Primary><Shift>x
 toggle-broadcast = <Primary><Shift>b
-toggle-atlas = <Alt>a
 zoom-in = <Primary>plus
 zoom-out = <Primary>minus
 zoom-reset = <Primary>0
@@ -183,13 +181,6 @@ Disk usage = df -h
 Memory usage = free -h
 Failed services = systemctl --failed
 
-# Sysible Atlas. By default Atlas runs a LOCAL model via Ollama and nothing leaves
-# the machine. Optionally pick "Claude" or "GPT" in the Atlas model selector to
-# use a cloud model instead — that sends the command + terminal output to the
-# provider. Put the key here (or set SYSIBLE_ANTHROPIC_API_KEY / SYSIBLE_OPENAI_API_KEY
-# in the environment). Uncomment and fill in to enable:
-# [atlas]
-# enabled = yes          # "no" runs SysTerm with NO Atlas at all (plain terminal, zero footprint)
 # keep_alive = 30s       # how long the local model stays loaded after a reply (e.g. 10m; "0" = unload now)
 # anthropic_api_key =
 # openai_api_key =
@@ -198,7 +189,7 @@ Failed services = systemctl --failed
 
 def ensure_default_config():
     """Write a commented default config on first run so there's something to edit.
-    The file can hold cloud API keys (the [atlas] section), so create the dir and
+    Create the dir and
     file PRIVATE from birth (0700 / 0600) — never world-readable."""
     try:
         if not os.path.exists(CONFIG_PATH):

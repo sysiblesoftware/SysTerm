@@ -1,7 +1,7 @@
 #!/bin/sh
 # SysTerm installer — works on any Linux with GTK3 + VTE (Debian/Ubuntu, Fedora,
 # Arch, openSUSE). Installs the runtime deps, SysTerm itself (pure Python, no
-# pip needed), the desktop entry + icons, and the Sysible Atlas shell hooks.
+# pip needed), and the desktop entry + icons.
 #
 #   Quick install:  curl -fsSL https://raw.githubusercontent.com/sysiblesoftware/SysTerm/dev/install.sh | sh
 #   From a checkout: sudo ./install.sh
@@ -44,7 +44,6 @@ else
     BINDIR="/usr/local/bin"
     APPS="/usr/share/applications"
     ICONS="/usr/share/icons/hicolor"
-    PROFILED="/etc/profile.d/systerm-atlas.sh"
     SUDO=""
 fi
 
@@ -53,9 +52,10 @@ if [ "$ACTION" = uninstall ]; then
     say "Removing SysTerm…"
     rm -rf "$LIBDIR" "$BINDIR/systerm" "$APPS/systerm.desktop"
     rm -f "$ICONS"/*/apps/io.systerm.SysTerm.* 2>/dev/null || true
-    [ "$MODE" = user ] || rm -f "$PROFILED"
+    # Also clear the shell hook older versions installed for the removed
+    # Atlas companion, so an upgrade-then-uninstall leaves nothing behind.
+    [ "$MODE" = user ] || rm -f /etc/profile.d/systerm-atlas.sh
     command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$ICONS" 2>/dev/null || true
-    say "Done. (Atlas hooks in ~/.bashrc, if added, can be removed by hand.)"
     exit 0
 fi
 
@@ -112,7 +112,6 @@ say "Installing SysTerm to $LIBDIR…"
 mkdir -p "$LIBDIR" "$BINDIR" "$APPS" "$ICONS"
 rm -rf "$LIBDIR/systerm"
 cp -r "$SRC/systerm" "$LIBDIR/systerm"
-cp "$SRC/data/systerm-atlas.sh" "$LIBDIR/systerm-atlas.sh"
 
 cat > "$BINDIR/systerm" <<LAUNCH
 #!/bin/sh
@@ -124,44 +123,11 @@ cp "$SRC/data/systerm.desktop" "$APPS/systerm.desktop"
 cp -r "$SRC/data/icons/hicolor/." "$ICONS/"
 command -v gtk-update-icon-cache >/dev/null 2>&1 && gtk-update-icon-cache -f "$ICONS" 2>/dev/null || true
 
-# ---- Sysible Atlas shell hooks --------------------------------------------
-if [ "$MODE" = user ]; then
-    RC="$HOME/.bashrc"; LINE=". \"$LIBDIR/systerm-atlas.sh\""
-    if ! { [ -f "$RC" ] && grep -qF "systerm-atlas.sh" "$RC"; }; then
-        printf '\n# SysTerm Atlas companion\n%s\n' "$LINE" >> "$RC"   # creates ~/.bashrc if absent
-        say "Added Atlas hooks to ~/.bashrc"
-    fi
-else
-    cp "$SRC/data/systerm-atlas.sh" "$PROFILED"
-    # /etc/profile.d is sourced by LOGIN shells only, but SysTerm spawns an
-    # interactive NON-login shell — which reads the system bashrc. Source our
-    # hook from there too, or the auto-catch + `ai` command won't load. (Fedora
-    # uses /etc/bashrc; Debian/Ubuntu/Arch/SUSE use /etc/bash.bashrc.)
-    SYSBRC=""
-    for c in /etc/bash.bashrc /etc/bashrc; do [ -f "$c" ] && SYSBRC="$c" && break; done
-    if [ -n "$SYSBRC" ] && ! grep -qF 'systerm-atlas.sh' "$SYSBRC"; then
-        printf '\n# SysTerm Atlas companion (interactive shells)\n[ -n "$PS1" ] && [ -f %s ] && . %s\n' \
-            "$PROFILED" "$PROFILED" >> "$SYSBRC"
-        say "Installed Atlas hooks ($PROFILED, sourced from $SYSBRC)"
-    else
-        say "Installed Atlas hooks to $PROFILED"
-        [ -z "$SYSBRC" ] && warn "No system bashrc found — add '. $PROFILED' to it so \`ai\`/auto-catch load in terminals."
-    fi
-    # Make SysTerm a terminal option on Debian-family systems (best-effort).
-    command -v update-alternatives >/dev/null 2>&1 && \
-        update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$BINDIR/systerm" 40 2>/dev/null || true
-fi
+# ---- desktop integration ----------------------------------------------------
+# Make SysTerm a terminal option on Debian-family systems (best-effort).
+command -v update-alternatives >/dev/null 2>&1 && \
+    update-alternatives --install /usr/bin/x-terminal-emulator x-terminal-emulator "$BINDIR/systerm" 40 2>/dev/null || true
 
 [ -n "$CLEANUP" ] && rm -rf "$CLEANUP"
 
 say "SysTerm installed. Launch it from your app menu or run: systerm"
-cat <<'NEXT'
-
-  Sysible Atlas (the AI companion pane) opens on first launch and walks you
-  through installing Ollama and downloading a model — or open it anytime:
-  right-click → "Open Sysible Atlas", or press Alt+A. Ask in the pane's box;
-  failed commands appear there automatically.
-
-  (The auto-catch of failed commands is bash-only — open a NEW terminal, or run
-  `exec bash`, so the shell hook loads. The pane itself works in any shell.)
-NEXT

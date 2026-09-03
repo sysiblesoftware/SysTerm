@@ -19,96 +19,7 @@ _CSS = b"""
    fleet by accident. */
 .systerm-broadcast { border: 2px solid #d0a060; }
 
-/* ---- Sysible Atlas companion pane ---- */
-/* Same navy as the terminal background (config default #0d1320) so the pane and
-   the terminal read as one continuous surface (no black-vs-blue seam). */
-.atlas-panel { background: #0d1320; border-left: 1px solid #1c2430; }
-.atlas-header {
-    padding: 10px 12px; background: #0b1017; border-bottom: 1px solid #1c2430;
-}
-.atlas-dot { color: #6ddb73; }
-.atlas-dot-off { color: #6a7480; }
-.atlas-header label { color: #dfeee6; font-size: 12.5px; }
-/* Model selector pill on the right of the header (local + installed models). */
-.atlas-badge {
-    background: #0b1119; color: #9fb0c6; border: 1px solid #1c2430;
-    border-radius: 999px; padding: 1px 6px 1px 10px; font-size: 11.5px; font-family: monospace;
-}
-.atlas-badge label { color: #9fb0c6; font-size: 11.5px; font-family: monospace; }
-.atlas-model, .atlas-model button {
-    background: transparent; color: #cfe6c4; border: none; box-shadow: none;
-    text-shadow: none; font-family: monospace; font-size: 11.5px; min-height: 0;
-    padding: 0 2px;
-}
-.atlas-model button:hover { background: rgba(109,219,115,.12); border-radius: 5px; }
-.atlas-model cellview { color: #cfe6c4; }
-.atlas-ghost, .atlas-run {
-    background: #0b1119; color: #8ae88f; border: 1px solid rgba(109,219,115,.40);
-    border-radius: 7px; padding: 3px 10px; font-size: 12px; box-shadow: none;
-    text-shadow: none;
-}
-.atlas-ghost { color: #8ea1b8; border-color: #263041; }
-.atlas-ghost:hover, .atlas-run:hover { background: rgba(109,219,115,.10); }
-.atlas-close { color: #8ea1b8; padding: 3px 8px; font-size: 13px; }
-.atlas-close:hover { background: rgba(229,72,77,.14); color: #e5a0a2; border-color: rgba(229,72,77,.40); }
-.atlas-card {
-    background: #0c121a; border: 1px solid #1c2430; border-radius: 10px;
-    padding: 11px 13px; border-left: 3px solid #263041;
-}
-.atlas-card-err { border-left-color: #e5484d; }
-.atlas-card-ans { border-left-color: #6ddb73; }
-.atlas-card-title {
-    color: #e7eef6; font-size: 12.5px; font-weight: bold; letter-spacing: .2px;
-}
-.atlas-card-sub { color: #4a5568; font-size: 11px; font-family: monospace; }
-/* Small status pill next to the title: red "exit 127" for failures, muted tag
-   for answers. Cleaner than an ALL-CAPS "COMMAND FAILED - EXIT 127" string. */
-.atlas-exit {
-    color: #e5a0a2; background: rgba(229,72,77,.14); border: 1px solid rgba(229,72,77,.34);
-    border-radius: 999px; padding: 0 8px; font-size: 10.5px; font-family: monospace;
-}
-.atlas-tag {
-    color: #8ea1b8; background: #0b1119; border: 1px solid #1c2430;
-    border-radius: 999px; padding: 0 8px; font-size: 10.5px; font-family: monospace;
-}
-.atlas-stream, .atlas-code-text {
-    font-family: monospace; font-size: 12.5px; color: #c7d2e0;
-}
-.atlas-wait { color: #55627a; font-style: italic; }
-.atlas-fail { color: #e5a0a2; }
-.atlas-prose { color: #b7c4d4; font-size: 13px; }
-/* The user's question, echoed at the top of an answer card. */
-.atlas-question {
-    color: #9fb0c6; font-size: 12.5px; padding: 6px 9px; margin-bottom: 2px;
-    background: #0b1119; border-radius: 7px; border-left: 2px solid #3560d4;
-}
-.atlas-code {
-    background: #080c12; border: 1px solid #1c2430; border-radius: 7px;
-    padding: 8px 10px; margin: 4px 0;
-}
-.atlas-code-text { color: #eaf1f8; }
-.atlas-empty { color: #55627a; font-size: 12.5px; padding: 24px 16px; }
-.atlas-ask {
-    padding: 9px 12px; background: #0b1017; border-top: 1px solid #1c2430;
-}
-.atlas-ask entry {
-    background: #0c121a; color: #dbe6f2; border: 1px solid #263041;
-    border-radius: 7px; caret-color: #6ddb73;
-}
-.atlas-footer {
-    padding: 6px 12px; background: #0a0e15; border-top: 1px solid #1c2430;
-    color: #6f7d94; font-family: monospace; font-size: 11px;
-}
-.atlas-footer label { color: #6f7d94; font-family: monospace; font-size: 11px; }
-/* Footer action hints (Analyze / Ask / Setup): quiet until hovered. */
-.atlas-hint {
-    background: transparent; border: none; box-shadow: none; text-shadow: none;
-    color: #7d8aa0; padding: 1px 6px; font-family: monospace; font-size: 11px;
-    min-height: 0;
-}
-.atlas-hint:hover { color: #8ae88f; background: rgba(109,219,115,.08); border-radius: 5px; }
 """
-
 
 class SysTermApp(Gtk.Application):
     def __init__(self):
@@ -138,7 +49,7 @@ class SysTermApp(Gtk.Application):
             win = SysTermWindow(self, self.config, command=command, cwd=cwd)
         except Exception:
             # A window must open even if something in its construction (a bad
-            # config value, an Atlas/GI hiccup) throws — otherwise the whole app
+            # config value, a GI hiccup) throws — otherwise the whole app
             # registers, then dies with no window and the user is locked out of
             # their terminal. Log it and fall back to a minimal window.
             import traceback
@@ -178,7 +89,6 @@ class SysTermApp(Gtk.Application):
             import traceback
             traceback.print_exc()
 
-
 _NO_DISPLAY = """\
 SysTerm is a graphical terminal — it needs a desktop session (X11 or Wayland),
 but no display was found.
@@ -189,7 +99,6 @@ but no display was found.
 
 (No $DISPLAY or $WAYLAND_DISPLAY, or the display could not be opened.)
 """
-
 
 def parse_terminal_args(argv):
     """Split off the x-terminal-emulator-style options so GApplication never sees
@@ -227,7 +136,6 @@ def parse_terminal_args(argv):
         command = None   # a bare `-e` with no command → just open a shell
     return prog + passthrough, command, cwd
 
-
 def _has_display(argv):
     """True if a usable display is reachable. Uses Gtk.init_check so a set-but-
     dead $DISPLAY (e.g. broken SSH forwarding) is caught, not just an unset one."""
@@ -238,7 +146,6 @@ def _has_display(argv):
         return bool(ok)
     except Exception:
         return False
-
 
 def main(argv=None):
     import sys

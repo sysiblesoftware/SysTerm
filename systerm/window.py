@@ -13,7 +13,6 @@ from gi.repository import Gtk, Gio, GLib, Gdk, Pango, GdkPixbuf  # noqa: E402
 
 from . import __version__
 from .terminal import SysTermTerminal
-from . import atlas as _atlas
 from .config import CONFIG_DIR
 
 # Shown in the window title so it's obvious at a glance which build is running
@@ -51,100 +50,11 @@ class SysTermWindow(Gtk.ApplicationWindow):
         self.notebook.set_show_border(False)
         self.notebook.connect("switch-page", lambda *_: GLib.idle_add(self._focus_current))
 
-        # Sysible Atlas companion: a control FIFO the shells write to, a local
-        # model client, and the companion pane docked to the right of the tabs.
-        # The pane is hidden until you open it (Alt+A) or a command fails. ALL of
-        # this is optional: if any part fails to initialise (missing GLib bits, a
-        # sandboxed FIFO, etc.) SysTerm must still open as a plain terminal, so it
-        # is wrapped and the window falls back to just the notebook.
-        self._atlas = None
-        self._atlas_ctl = None
-        self._atlas_sock = None
-        self._atlas_paned = None
-        self._atlas_term = None
-        # The PANE (ask box, analyze, right-click "Open Sysible Atlas") is the
-        # core companion and must survive on its own. The control FIFO — which
-        # lets the shell auto-report failed commands — is a SEPARATE, optional
-        # feature: if it can't be created (sandboxed /tmp, no mkfifo), we still
-        # want the pane and its menu entry, just without hands-free auto-catch.
-        try:
-            if not _atlas.atlas_enabled():
-                raise RuntimeError("disabled by config ([atlas] enabled = no)")
-            self._atlas_client = _atlas.AtlasClient()
-            self._atlas = _atlas.AtlasPanel(self._atlas_client)
-            self._atlas.on_ask = self._atlas_ask
-            self._atlas.on_run = self._atlas_run
-            self._atlas.on_analyze = self._atlas_analyze_active
-            self._atlas.on_close = self._hide_atlas
-        except Exception as e:
-            self._atlas = None
-            print("SysTerm: Atlas companion disabled (%s)" % e)
-
-        if self._atlas is not None:
-            try:
-                self._atlas_ctl = _atlas.AtlasControl(self._on_atlas_event)
-                self._atlas_sock = self._atlas_ctl.start()
-            except Exception as e:
-                self._atlas_sock = None
-                try:
-                    if self._atlas_ctl is not None:
-                        self._atlas_ctl.stop()
-                except Exception:
-                    pass
-                self._atlas_ctl = None
-                print("SysTerm: Atlas auto-catch disabled (%s)" % e)
-
-        if self._atlas is not None:
-            self._atlas_paned = Gtk.Paned(orientation=Gtk.Orientation.HORIZONTAL)
-            self._atlas_paned.set_wide_handle(True)
-            self._atlas_paned.pack1(self.notebook, True, True)
-            # shrink=True lets the user drag the divider freely (both wider AND
-            # narrower); resize=False keeps Atlas's width steady when the WINDOW
-            # is resized (the terminal side absorbs the change instead).
-            self._atlas_paned.pack2(self._atlas, False, True)
-            # Remember the width the user drags to, so reopening Atlas restores it
-            # instead of snapping back to a fixed size.
-            self._atlas_width = 420
-            self._atlas_paned.connect("notify::position", self._remember_atlas_width)
-            self.add(self._atlas_paned)
-            self.connect("destroy", lambda *_: self._atlas_ctl and self._atlas_ctl.stop())
-        else:
-            self.add(self.notebook)   # plain terminal — no companion
+        self.add(self.notebook)
 
         self._install_actions(app)
         self.new_tab()
-        if self._atlas is not None:
-            # Reveal the companion (with its Setup card) the FIRST time SysTerm is
-            # ever launched, so new users are walked through installing Ollama and
-            # downloading a model; collapsed by default thereafter.
-            if self._first_run():
-                # Show the companion and pin the divider on the FIRST real
-                # allocation. idle_add fires BEFORE the window is sized (alloc
-                # width == 1 then), so any set_position there is a silent no-op —
-                # the old bug that let GtkPaned fall back to natural-size guessing
-                # and open Atlas at ~2/3 width. The panel's natural width is now
-                # clamped (AtlasPanel.do_get_preferred_width), so the split is a
-                # sidebar by construction; this pins it to the exact width too.
-                self._atlas.show()
-                self._atlas_first_placed = False
-                self._atlas_paned.connect("size-allocate", self._place_atlas_first_run)
-            else:
-                GLib.idle_add(self._atlas.hide)
 
-    def _first_run(self):
-        """True once — records a flag so the Atlas welcome shows only on the very
-        first launch."""
-        flag = os.path.join(CONFIG_DIR, ".atlas-welcomed")
-        if os.path.exists(flag):
-            return False
-        try:
-            os.makedirs(CONFIG_DIR, exist_ok=True)
-            open(flag, "w").close()
-        except OSError:
-            pass
-        return True
-
-    # ===== tabs ============================================================
     def new_tab(self):
         root = Gtk.Box(orientation=Gtk.Orientation.VERTICAL)   # holds exactly one child: term or paned
         term = self._make_terminal()
@@ -199,8 +109,7 @@ class SysTermWindow(Gtk.ApplicationWindow):
         command, cwd = self._pending_command, self._pending_cwd
         self._pending_command = self._pending_cwd = None   # first pane only
         term = SysTermTerminal(self.config, on_exit=self._on_term_exit,
-                               on_title=self._on_term_title, command=command, cwd=cwd,
-                               atlas_sock=self._atlas_sock)
+                               on_title=self._on_term_title, command=command, cwd=cwd)
         # Broadcast at the key-press layer, NOT via VTE's "commit" signal.
         # feed_child() makes a pane re-emit "commit", so a commit-based broadcast
         # feeds back on itself (one keystroke avalanches across every pane).
@@ -264,14 +173,6 @@ class SysTermWindow(Gtk.ApplicationWindow):
         run_item.set_submenu(submenu)
         menu.append(run_item)
         sep()
-
-        # Sysible Atlas: open the AI companion, or analyze THIS pane's last output
-        # in it (the right-click already set _active to this pane). Only shown when
-        # the companion initialised.
-        if self._atlas is not None:
-            add("Open Sysible Atlas", self.open_atlas, action="toggle-atlas")
-            add("Analyze in Sysible Atlas", lambda: self._atlas_analyze_active(term))
-            sep()
 
         # Terminator wording: "horizontal" = top/bottom (a VERTICAL paned).
         add("Split Horizontally", lambda: self.split(Gtk.Orientation.VERTICAL),
@@ -619,214 +520,6 @@ class SysTermWindow(Gtk.ApplicationWindow):
             self._broadcasting = False
         return False
 
-    # ===== Sysible Atlas ===================================================
-    def toggle_atlas(self):
-        if self._atlas is None:
-            return
-        if self._atlas.get_visible():
-            self._hide_atlas()
-        else:
-            self._show_atlas()
-            self._atlas.focus_ask()
-
-    def open_atlas(self):
-        """Reveal the companion and focus the ask box (right-click / Alt+A)."""
-        if self._atlas is None:
-            return
-        self._show_atlas()
-        self._atlas.focus_ask()
-
-    def _hide_atlas(self):
-        """Hide the companion (the pane's ✕ button, or Alt+A). hide() keeps the
-        widget and all its cards, so history is intact when it reopens; the
-        terminal reclaims the FULL width (some GTK versions otherwise leave the old
-        divider position as a blank gap)."""
-        if self._atlas is None:
-            return
-        self._atlas.hide()
-        if self._atlas_paned is not None:
-            w = self._atlas_paned.get_allocation().width
-            if w > 1:
-                self._atlas_paned.set_position(w)
-        self._focus_current()
-
-    def _show_atlas(self):
-        if self._atlas is None:
-            return
-        if not self._atlas.get_visible():
-            self._atlas.show()
-
-        # Atlas's natural width is capped (see AtlasPanel), so on FIRST-RUN the
-        # paned already opens it as a narrow sidebar with the terminal dominant —
-        # no divider positioning needed, and nothing can balloon it. We only need
-        # to reposition when REOPENING after a hide (hide parks the divider at
-        # full width to reclaim terminal space); by then the window is allocated,
-        # so the width is known and the placement is exact — no timing hacks.
-        alloc = self._atlas_paned.get_allocation()
-        if alloc.width > 1:
-            self._atlas_paned.set_position(max(200, alloc.width - self._atlas_width))
-
-    def _place_atlas_first_run(self, paned, alloc):
-        """One-shot: on the first real allocation, park the divider so Atlas is a
-        fixed-width sidebar and the terminal keeps the rest. Runs exactly once,
-        then disconnects so it never overrides the user's later drags."""
-        if getattr(self, "_atlas_first_placed", True) or alloc.width <= 1:
-            return
-        self._atlas_first_placed = True
-        paned.set_position(max(200, alloc.width - self._atlas_width))
-        # Disconnect after this emission settles (avoids re-entrancy on the
-        # reallocation our own set_position triggers).
-        GLib.idle_add(self._disconnect_first_run, paned)
-
-    def _disconnect_first_run(self, paned):
-        try:
-            paned.disconnect_by_func(self._place_atlas_first_run)
-        except (TypeError, RuntimeError):
-            pass
-        return False
-
-    def _remember_atlas_width(self, paned, _param):
-        """Record the width the user drags Atlas to, so it persists across
-        hide/show. Only while Atlas is visible — the hide() path parks the divider
-        at full width to reclaim terminal space, which isn't a real width."""
-        if self._atlas is None or not self._atlas.get_visible():
-            return
-        alloc = paned.get_allocation()
-        w = alloc.width - paned.get_position()
-        if w > 120:
-            self._atlas_width = w
-
-    def _term_by_id(self, pane_id):
-        for t in self.terminals:
-            if getattr(t, "atlas_id", None) == pane_id:
-                return t
-        return None
-
-    def _atlas_run_target(self, term):
-        """Label for the card's Run button: 'terminal N' naming the exact pane the
-        command will be typed into (1-based, matching left-to-right order)."""
-        try:
-            return "terminal %d" % (self.terminals.index(term) + 1)
-        except (ValueError, AttributeError):
-            return "terminal"
-
-    def _atlas_messages(self, term, command=None, exit_code=None, question=None):
-        ctx = []
-        # A typed question is general Q&A, not error diagnosis — lead with it and
-        # use the question prompt (no Cause/Fix, no "No error" prefix).
-        if question:
-            ctx.append("Question: %s" % question)
-        if command:
-            # Name the specific command so the model addresses THIS one, not some
-            # other command elsewhere in the scrollback (or an invented example).
-            label = ("The command that failed (fix THIS one only)"
-                     if exit_code is not None else "The command to analyze")
-            ctx.append("%s:\n%s" % (label, command))
-        if exit_code is not None:
-            ctx.append("Its exit code: %s" % exit_code)
-        # A focused slice of the buffer. A caught failure needs only the last few
-        # lines (the command + its own output); sending the whole scrollback makes
-        # a small model grab the wrong command. A manual analysis gets a bit more.
-        lines = 24 if command else 60
-        output = term.recent_text(max_lines=lines) if term is not None else ""
-        if output:
-            if len(output) > 4000:
-                output = "…(truncated)…\n" + output[-4000:]
-            ctx.append("Recent terminal output (context only):\n%s" % output)
-        system = _atlas.QUESTION_PROMPT if question else _atlas.SYSTEM_PROMPT
-        return [
-            {"role": "system", "content": system},
-            {"role": "user", "content": "\n\n".join(ctx) or "Explain the last output."},
-        ]
-
-    def _on_atlas_event(self, kind, pane_id, exit_code, text):
-        """Fired from the control FIFO (main loop). text is the command (error)
-        or the question (ask)."""
-        if self._atlas is None:
-            return False
-        # Stopped via the Atlas Stop button: stay completely idle (no auto-catch).
-        if self._atlas.is_stopped():
-            return False
-        # Auto-catch is opt-in by *having Atlas open*. A failed command must NOT
-        # pop the pane open on its own — the user opens Atlas when they want it
-        # watching (Alt+A / right-click), and only then do caught errors appear.
-        if not self._atlas.get_visible():
-            return False
-        term = self._term_by_id(pane_id) or self._active_terminal()
-        self._atlas_term = term
-        rt = self._atlas_run_target(term)
-        pid = getattr(term, "atlas_id", None)
-        if kind == "error":
-            self._atlas.start_card("error", "Command failed", text,
-                                   self._atlas_messages(term, command=text,
-                                                        exit_code=exit_code),
-                                   run_target=rt, run_pane_id=pid,
-                                   badge="exit %s" % exit_code)
-        else:  # ask
-            self._atlas.start_card("answer", "Answer", "local",
-                                   self._atlas_messages(term, question=text),
-                                   run_target=rt, run_pane_id=pid, prompt=text)
-        return False   # in case invoked via idle_add
-
-    def _atlas_ask(self, question):
-        if self._atlas is None:
-            return
-        term = self._atlas_term or self._active_terminal()
-        self._atlas_term = term
-        self._show_atlas()
-        self._atlas.start_card("answer", "Answer", "local",
-                               self._atlas_messages(term, question=question),
-                               run_target=self._atlas_run_target(term),
-                               run_pane_id=getattr(term, "atlas_id", None),
-                               prompt=question)
-
-    def _atlas_analyze_active(self, term=None):
-        if self._atlas is None:
-            return
-        term = term or self._active_terminal()
-        if term is None:
-            return
-        self._atlas_term = term
-        self._show_atlas()
-        # Don't ask the model to analyze an essentially empty terminal — with no
-        # real content a small model invents a canned failure (the classic
-        # "git pull -> could not resolve host"). Require some actual output.
-        out = term.recent_text(max_lines=60)
-        meaningful = [ln for ln in out.splitlines() if ln.strip()]
-        if len(meaningful) < 2:
-            self._atlas.note_card(
-                "Nothing to analyze yet — run a command in this terminal first, "
-                "then hit Analyze (or a failed command appears here automatically).")
-            return
-        # Pull the actual last command out of the scrollback and hand it to the
-        # model explicitly, so it diagnoses THAT (not a hallucinated example).
-        cmd = self._last_command(term)
-        self._atlas.start_card("answer", "Analysis", "local",
-                               self._atlas_messages(term, command=cmd),
-                               run_target=self._atlas_run_target(term),
-                               run_pane_id=getattr(term, "atlas_id", None))
-
-    def _last_command(self, term):
-        """Best-effort: the most recent command typed at a standard prompt, from
-        the scrollback. None if we can't recognise the prompt (then we just send
-        the buffer)."""
-        cmd = None
-        for ln in term.recent_text(max_lines=80).splitlines():
-            m = _PROMPT_RE.search(ln)
-            if m and m.group(1).strip():
-                cmd = m.group(1).strip()
-        return cmd
-
-    def _atlas_run(self, command, pane_id=None):
-        # Prefer the exact pane this card came from; fall back to the last active
-        # one (setup/recovery buttons pass no pane id).
-        term = self._term_by_id(pane_id) if pane_id else None
-        term = term or self._atlas_term or self._active_terminal()
-        if term is not None:
-            term.run_command(command)
-            self._atlas_term = term
-            term.grab_focus()
-
     # ===== helpers =========================================================
     def _current_root(self):
         idx = self.notebook.get_current_page()
@@ -894,7 +587,6 @@ class SysTermWindow(Gtk.ApplicationWindow):
             "prev-pane": lambda *_: self.cycle_pane(-1),
             "zoom-pane": lambda *_: self.toggle_zoom(),
             "toggle-broadcast": lambda *_: self.toggle_broadcast(),
-            "toggle-atlas": lambda *_: self.toggle_atlas(),
             "zoom-in": lambda *_: self._active_do(lambda t: t.zoom(1)),
             "zoom-out": lambda *_: self._active_do(lambda t: t.zoom(-1)),
             "zoom-reset": lambda *_: self._active_do(lambda t: t.zoom(0)),
