@@ -5,6 +5,8 @@ written on first run so users have something to edit."""
 
 import os
 import configparser
+import re
+import sys
 
 CONFIG_DIR = os.path.join(
     os.environ.get("XDG_CONFIG_HOME") or os.path.expanduser("~/.config"), "systerm")
@@ -54,6 +56,22 @@ DEFAULT_COMMANDS = [
 ]
 
 
+# An INI key must be ONE line and must not contain the key/value delimiter. A menu
+# label that breaks either rule makes the whole file unparseable — and load() then
+# falls back to defaults, so one stray character in a label silently costs the user
+# their font, colours, keybindings AND every other saved command. Normalise here so
+# that cannot happen, keeping the label as close to what was typed as the format
+# allows.
+_LABEL_UNSAFE = re.compile(r"[\r\n\x00-\x1f]+")
+
+
+def safe_label(label, fallback="Command"):
+    s = _LABEL_UNSAFE.sub(" ", label or "").strip()
+    s = s.replace("=", "-").replace(":", "-")
+    s = s.lstrip("[#;").strip()
+    return s or fallback
+
+
 class Config:
     """Loaded profile + keybindings. Attributes are plain values so the rest of
     the app never touches configparser."""
@@ -75,13 +93,28 @@ class Config:
         self.commands = list(DEFAULT_COMMANDS)
 
     def load(self, path=CONFIG_PATH):
-        cp = configparser.ConfigParser()
+        # interpolation=None is LOAD-BEARING. With configparser's default
+        # BasicInterpolation a '%' in any value raises InterpolationSyntaxError —
+        # not on read(), but later on every .get()/.items() call. Saved commands
+        # are full shell lines, so that fires on completely ordinary ones:
+        #   date +%Y-%m-%d ... ps --sort=-%cpu ... git log --pretty=format:'%h'
+        #   curl -w '%{http_code}' ... awk '{printf "%s\n", $1}'
+        # and the exception escaped load() into App.do_startup(), so SysTerm would
+        # not start AT ALL — with no terminal left to edit the config back out.
+        # Values are taken literally now; nothing here wants interpolation.
+        cp = configparser.ConfigParser(interpolation=None)
         cp.optionxform = str            # preserve case (command labels are shown verbatim)
         try:
             if not cp.read(path):
                 return self
-        except configparser.Error:
+            return self._apply(cp)
+        except (configparser.Error, ValueError, TypeError) as e:
+            # A broken config must never be fatal: fall back to defaults and SAY
+            # so, rather than silently dropping the user's whole profile.
+            print("SysTerm: ignoring unreadable config %s (%s)" % (path, e), file=sys.stderr)
             return self
+
+    def _apply(self, cp):
         p = cp["profile"] if cp.has_section("profile") else {}
         self.font = p.get("font", self.font)
         self.cursor_shape = p.get("cursor_shape", self.cursor_shape)
@@ -105,10 +138,10 @@ class Config:
                 self.commands = cmds
         return self
 
+
     def save_commands(self, path=CONFIG_PATH):
         """Persist the current command list to the [commands] section, leaving the
         rest of the file (profile, keys, comments) untouched."""
-        import re
         try:
             os.makedirs(CONFIG_DIR, exist_ok=True)
             if os.path.exists(path):
@@ -121,9 +154,20 @@ class Config:
             out = ["", "[commands]",
                    "# label = command  — shown in the terminal right-click Run Command menu."]
             for label, cmd in self.commands:
-                out.append("%s = %s" % (label, cmd))
-            with open(path, "w", encoding="utf-8") as f:
-                f.write(text + "\n".join(out) + "\n")
+                # A command is written VERBATIM (it is a shell line — '%', quotes
+                # and pipes all have to survive); only the label is constrained,
+                # because it becomes the INI key.
+                out.append("%s = %s" % (safe_label(label, cmd.strip() or "Command"),
+                                        cmd.replace("\n", " ").rstrip()))
+            body = text + "\n".join(out) + "\n"
+            # Create 0600 rather than whatever the umask says. The file holds the
+            # user's saved commands (hostnames, flags, sometimes tokens) and
+            # ensure_default_config already takes care to make it private —
+            # a plain open() here would hand that back on any path where the file
+            # does not already exist.
+            fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | os.O_NOFOLLOW, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                f.write(body)
         except OSError:
             pass
 

@@ -13,7 +13,7 @@ from gi.repository import Gtk, Gio, GLib, Gdk, Pango, GdkPixbuf  # noqa: E402
 
 from . import __version__
 from .terminal import SysTermTerminal
-from .config import CONFIG_DIR
+from .config import CONFIG_DIR, safe_label
 
 # Shown in the window title so it's obvious at a glance which build is running
 # (a freshly-built .deb does nothing until you relaunch — the title makes a
@@ -253,7 +253,10 @@ class SysTermWindow(Gtk.ApplicationWindow):
         lbl = e_label.get_text().strip() or cmd
         dlg.destroy()
         if ok_clicked and cmd:
-            self.config.commands.append((lbl, cmd))
+            # Normalise here too, not just on write: the menu should show exactly
+            # what the config will hold, rather than a label that quietly changes
+            # the next time SysTerm starts.
+            self.config.commands.append((safe_label(lbl, cmd), cmd))
             self.config.save_commands()
             return True
         return False
