@@ -4,11 +4,28 @@
 set -e
 
 ROOT_BASHRC="/root/.bashrc"
+MARKER_BEGIN="# >>> SysTerm brand prompt >>>"
+MARKER_END="# <<< SysTerm brand prompt <<<"
 
 case "$1" in
     remove|purge)
         if [ -f "$ROOT_BASHRC" ]; then
-            sed -i '/# >>> SysTerm brand prompt >>>/,/# <<< SysTerm brand prompt <<</d' "$ROOT_BASHRC"
+            # Delete ONLY a complete, well-formed block, by line number.
+            #
+            # `sed '/begin/,/end/d'` deletes through to END OF FILE when the
+            # closing marker is missing — so a /root/.bashrc that had been
+            # hand-edited (or truncated by a full disk) would have everything
+            # after our marker silently destroyed by `apt remove systerm`.
+            # Removing a package must never be able to eat root's shell config.
+            begin=$(grep -n -F -- "$MARKER_BEGIN" "$ROOT_BASHRC" | head -1 | cut -d: -f1)
+            end=$(grep -n -F -- "$MARKER_END" "$ROOT_BASHRC" | head -1 | cut -d: -f1)
+            if [ -n "$begin" ] && [ -n "$end" ] && [ "$end" -ge "$begin" ]; then
+                sed -i "${begin},${end}d" "$ROOT_BASHRC"
+            elif [ -n "$begin" ] || [ -n "$end" ]; then
+                echo "systerm: $ROOT_BASHRC has an incomplete SysTerm prompt block" \
+                     "(one marker missing) — leaving the file untouched." >&2
+                echo "systerm: remove the block by hand if you want it gone." >&2
+            fi
         fi
         ;;
 esac

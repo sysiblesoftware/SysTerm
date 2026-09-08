@@ -7,11 +7,21 @@
 #   From a checkout: sudo ./install.sh
 #   Per-user:        ./install.sh --user      (no root; installs under ~/.local)
 #   Remove:          sudo ./install.sh --uninstall   [--user]
+#   Verified:        sudo ./install.sh --ref=v0.3.0 --sha256=<digest>
+#
+# Installing from a local checkout downloads nothing. The download path fetches a
+# tarball and installs it as root, so pin --ref to a tag and --sha256 to the digest
+# published with it; without a digest the install trusts TLS to github.com alone
+# and says so rather than implying a check it did not make.
 #
 set -eu
 
 REPO="sysiblesoftware/SysTerm"
-BRANCH="dev"
+# What to download when there is no local checkout. A branch moves, so it can
+# never have a stable digest — pass --ref=<tag> (plus the digest published with
+# that tag) for an install you can actually verify.
+REF="${SYSTERM_REF:-refs/heads/dev}"
+WANT_SHA256="${SYSTERM_SHA256:-}"
 MODE="system"
 ACTION="install"
 
@@ -19,6 +29,8 @@ for arg in "$@"; do
     case "$arg" in
         --user) MODE="user" ;;
         --uninstall|--remove) ACTION="uninstall" ;;
+        --ref=*) REF="${arg#--ref=}" ;;
+        --sha256=*) WANT_SHA256="${arg#--sha256=}" ;;
         -h|--help)
             sed -n '2,12p' "$0"; exit 0 ;;
         *) echo "unknown option: $arg" >&2; exit 2 ;;
@@ -67,12 +79,53 @@ if [ -n "$SELF" ] && [ -f "$SELF/systerm/app.py" ]; then
 else
     command -v curl >/dev/null 2>&1 || command -v wget >/dev/null 2>&1 || die "need curl or wget to download"
     TMP=$(mktemp -d); CLEANUP="$TMP"
-    say "Downloading SysTerm ($BRANCH)…"
-    url="https://github.com/$REPO/archive/refs/heads/$BRANCH.tar.gz"
-    if command -v curl >/dev/null 2>&1; then curl -fsSL "$url" | tar xz -C "$TMP"
-    else wget -qO- "$url" | tar xz -C "$TMP"; fi
+    say "Downloading SysTerm ($REF)…"
+    url="https://github.com/$REPO/archive/$REF.tar.gz"
+    tarball="$TMP/systerm.tar.gz"
+
+    # Download to a FILE rather than piping straight into tar. `set -e` does not
+    # fail on a non-final pipeline element and sh has no pipefail, so
+    # `curl … | tar xz` SWALLOWED a failed or truncated download: tar saw a short
+    # stream, and a partial tree could still be installed over /usr/local as root.
+    # Downloading first makes the transfer's exit status the gate.
+    if command -v curl >/dev/null 2>&1; then
+        curl -fsSL --proto '=https' --tlsv1.2 -o "$tarball" "$url" \
+            || die "download failed: $url"
+    else
+        wget -q --https-only -O "$tarball" "$url" || die "download failed: $url"
+    fi
+    [ -s "$tarball" ] || die "downloaded an empty archive from $url"
+
+    # Integrity. This runs as root and installs into /usr/local, so say plainly
+    # what is and is not being verified instead of implying a check that never
+    # happened. Pin a digest (published with each release) and it is enforced:
+    #   SYSTERM_SHA256=<sha256> sudo ./install.sh        or  --sha256=<sha256>
+    if [ -n "$WANT_SHA256" ]; then
+        command -v sha256sum >/dev/null 2>&1 || die "sha256sum is needed to verify --sha256"
+        got=$(sha256sum "$tarball" | cut -d' ' -f1)
+        [ "$got" = "$WANT_SHA256" ] || die "CHECKSUM MISMATCH for $url
+    expected $WANT_SHA256
+    got      $got
+  Refusing to install. If you did not mistype the digest, do not retry — the
+  archive you were served is not the one that digest describes."
+        say "Checksum verified ($got)."
+    else
+        warn "No --sha256/SYSTERM_SHA256 pinned: this install trusts TLS to github.com alone."
+        warn "Pin the digest published with the release to make that verifiable."
+    fi
+
+    # Refuse an archive that tries to write outside the temp dir. GNU tar strips
+    # a leading '/' and skips '..' members with a warning, but that behaviour is
+    # not universal and a warning is not a refusal — and this is running as root.
+    if tar tzf "$tarball" | grep -qE '(^/|(^|/)\.\.(/|$))'; then
+        die "archive contains an absolute or parent-directory path — refusing to extract"
+    fi
+    # Take our own ownership and permissions, never the archive's claims.
+    tar xzf "$tarball" -C "$TMP" --no-same-owner --no-same-permissions \
+        || die "could not extract $tarball"
     SRC=$(find "$TMP" -maxdepth 1 -type d -name 'SysTerm-*' | head -1)
-    [ -n "$SRC" ] || die "download failed"
+    [ -n "$SRC" ] && [ -f "$SRC/systerm/app.py" ] \
+        || die "the downloaded archive does not contain a SysTerm source tree"
 fi
 
 # ---- runtime dependencies --------------------------------------------------
