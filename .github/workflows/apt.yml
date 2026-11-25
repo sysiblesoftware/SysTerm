@@ -14,7 +14,11 @@ name: APT repo
 # first.
 on:
   push:
-    branches: [dev]
+    # main, not dev: SysTerm's trunk was renamed and dev deleted. Left as
+    # [dev] this workflow would have been born dead -- a trigger that can
+    # never fire, which is the exact failure mode that kept releases out of
+    # the apt repo on the OS side for months.
+    branches: [main]
     paths:                     # only when the package itself could have changed
       - 'systerm/**'
       - 'data/**'

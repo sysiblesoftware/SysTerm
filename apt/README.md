@@ -11,7 +11,7 @@ https://sysiblesoftware.github.io/SysTerm
 Once it's live, any installed Sysible machine gets SysTerm/Atlas updates the
 normal way — `sudo apt update && sudo apt upgrade` — instead of a manual
 `git pull` or a reinstall. A new version is published automatically whenever the
-version in `debian/changelog` bumps and lands on `dev`.
+version in `debian/changelog` bumps and lands on `main`.
 
 ## One-time setup
 
@@ -60,7 +60,7 @@ first successful publish; set this after that run.)
 
 ## After setup
 
-Push a `debian/changelog` version bump to `dev` (or run the workflow manually).
+Push a `debian/changelog` version bump to `main` (or run the workflow manually).
 The workflow builds the `.deb`, signs the repo, and pushes `gh-pages`. Verify:
 
 ```sh
